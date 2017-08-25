@@ -1,0 +1,19 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "HmbftipkadrLlCfzzVQ+iFHbl6g=",
+			"path": "github.com/golang/glog",
+			"revision": "23def4e6c14b4da8ac2ed8007337bc5eb5007998",
+			"revisionTime": "2016-01-25T20:49:56Z"
+		},
+		{
+			"checksumSHA1": "6KZEap6v/5gD+tjiNbpD81kD61o=",
+			"path": "github.com/willf/bitset",
+			"revision": "988f4f24992fc745de53c42df0da6581e42a6686",
+			"revisionTime": "2017-05-05T19:16:46Z"
+		}
+	],
+	"rootPath": "github.com/btccom/stratumSwitcher"
+}
