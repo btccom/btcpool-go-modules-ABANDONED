@@ -13,6 +13,12 @@ import (
 	"github.com/golang/glog"
 )
 
+// 协议检测超时时间
+const protocolDetectTimeoutSeconds = 15
+
+// 矿工名获取超时时间
+const findWorkerNameTimeoutSeconds = 60
+
 // StratumSession 是一个 Stratum 会话，包含了到客户端和到服务端的连接及状态信息
 type StratumSession struct {
 	clientConn   net.Conn
@@ -81,7 +87,7 @@ func (session *StratumSession) Stop() {
 }
 
 func (session *StratumSession) protocolDetect() {
-	magicNumber, err := session.peekWithTimeout(1, 30*time.Second)
+	magicNumber, err := session.peekWithTimeout(1, protocolDetectTimeoutSeconds*time.Second)
 
 	if err != nil {
 		glog.Warning("read failed: ", err)
@@ -209,7 +215,7 @@ func (session *StratumSession) stratumFindWorkerName() {
 			glog.Info("FindWorkerName Success: ", session.fullWorkerName)
 			session.connectStratumServer()
 		}
-	case <-time.After(90 * time.Second):
+	case <-time.After(findWorkerNameTimeoutSeconds * time.Second):
 		glog.Warning("FindWorkerName Timeout")
 		session.Stop()
 	}
