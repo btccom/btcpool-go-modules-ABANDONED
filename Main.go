@@ -10,7 +10,9 @@ import (
 func main() {
 	var serverID uint8 = 1
 	var listenAddr = "0.0.0.0:18080"
-	var serverMap = StratumServerInfoMap{"btc": StratumServerInfo{"cn.ss.btc.com:1800"}, "bcc": StratumServerInfo{"cn.ss.btc.com:1800"}}
+	var zkBroker = []string{"127.0.0.1:2181"}
+	var zkSwitcherWatchDir = "/stratumSwitcher/btcbcc/"
+	var serverMap = StratumServerInfoMap{"btc": StratumServerInfo{"cn.ss.btc.com:1800"}, "bcc": StratumServerInfo{"cn.ss.btc.com:443"}}
 
 	flag.Set("alsologtostderr", "true")
 	flag.Parse()
@@ -23,7 +25,12 @@ func main() {
 		return
 	}
 
-	StratumSessionGlobalInit(serverID, serverMap)
+	err = StratumSessionGlobalInit(serverID, serverMap, zkBroker, zkSwitcherWatchDir)
+
+	if err != nil {
+		glog.Fatal("init failed: ", err)
+		return
+	}
 
 	for {
 		conn, err := ln.Accept()

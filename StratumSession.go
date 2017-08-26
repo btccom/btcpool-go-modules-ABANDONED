@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/samuel/go-zookeeper/zk"
 )
 
 // 协议检测超时时间
@@ -50,6 +51,10 @@ type StratumSession struct {
 
 	// 用户所挖的币种
 	miningCoin string
+	// 监控的Zookeeper路径
+	zkWatchPath string
+	// 监控的Zookeeper事件
+	zkWatchEvent <-chan zk.Event
 }
 
 // StratumServerInfo Stratum服务器的信息
@@ -63,13 +68,32 @@ type StratumServerInfoMap map[string]StratumServerInfo
 // sessionIDManager 会话ID管理器实例
 var sessionIDManager *SessionIDManager
 
+// StratumServerInfoMap Stratum服务器信息列表
 var stratumServerInfoMap StratumServerInfoMap
+
+// zookeeperConn Zookeeper连接对象
+var zookeeperConn *zk.Conn
+
+// zookeeperSwitcherWatchDir 切换服务监控的zookeeper目录路径
+// 具体监控的路径为 zookeeperSwitcherWatchDir/子账户名
+var zookeeperSwitcherWatchDir string
 
 // StratumSessionGlobalInit StratumSession功能的全局初始化
 // 需要在使用StratumSession功能之前调用且仅调用一次
-func StratumSessionGlobalInit(serverID uint8, serverMap StratumServerInfoMap) {
+func StratumSessionGlobalInit(serverID uint8, serverMap StratumServerInfoMap, zkBrokers []string, zkSwitcherWatchDir string) error {
 	sessionIDManager = NewSessionIDManager(serverID)
 	stratumServerInfoMap = serverMap
+	zookeeperSwitcherWatchDir = zkSwitcherWatchDir
+
+	// 建立到Zookeeper集群的连接
+	conn, _, err := zk.Connect(zkBrokers, time.Second)
+
+	if err != nil {
+		return errors.New("Connect Zookeeper Failed: " + err.Error())
+	}
+
+	zookeeperConn = conn
+	return nil
 }
 
 // NewStratumSession 创建一个新的 Stratum 会话
@@ -96,7 +120,7 @@ func NewStratumSession(clientConn net.Conn) (*StratumSession, error) {
 	binary.Write(bytesBuffer, binary.BigEndian, sessionID)
 	session.sessionIDString = hex.EncodeToString(bytesBuffer.Bytes())
 
-	glog.Info("Session ID: ", sessionID)
+	glog.Info("Session ID: ", session.sessionIDString)
 
 	return session, nil
 }
@@ -293,29 +317,51 @@ func (session *StratumSession) stratumFindWorkerName() {
 }
 
 func (session *StratumSession) findMiningCoin() {
-	// TODO: 从zookeeper读取用户想挖的币种
+	// 从zookeeper读取用户想挖的币种
 
-	session.miningCoin = "btc"
+	session.zkWatchPath = zookeeperSwitcherWatchDir + session.subaccountName
+	data, _, event, err := zookeeperConn.GetW(session.zkWatchPath)
+
+	if err != nil {
+		glog.Error("FindMiningCoin Failed: " + session.zkWatchPath + "; " + err.Error())
+
+		response := JSONRPCResponse{nil, nil, JSONRPCArray{201, "Cannot Found Minning Coin Type", nil}}
+		session.writeJSONResponseToClient(&response)
+
+		session.Stop()
+		return
+	}
+
+	session.miningCoin = string(data)
+	session.zkWatchEvent = event
 
 	session.connectStratumServer()
 }
 
 func (session *StratumSession) connectStratumServer() {
-	serverInfo := stratumServerInfoMap[session.miningCoin]
-	glog.Info("ServerInfo: ", serverInfo)
+	serverInfo, ok := stratumServerInfoMap[session.miningCoin]
 
-	serverConn, err := net.Dial("tcp", serverInfo.URL)
+	if !ok {
+		glog.Error("Stratum Server Not Found: ", session.miningCoin)
 
-	if err != nil {
-		glog.Error("Connect Stratum Server Failed: ", err)
-
-		response := JSONRPCResponse{nil, nil, JSONRPCArray{201, "Connect Stratum Server Failed", nil}}
+		response := JSONRPCResponse{nil, nil, JSONRPCArray{301, "Stratum Server Not Found: " + session.miningCoin, nil}}
 		session.writeJSONResponseToClient(&response)
 		session.Stop()
 		return
 	}
 
-	glog.Info("Connect Stratum Server Success")
+	serverConn, err := net.Dial("tcp", serverInfo.URL)
+
+	if err != nil {
+		glog.Error("Connect Stratum Server Failed: ", session.miningCoin, "; ", serverInfo.URL, "; ", err)
+
+		response := JSONRPCResponse{nil, nil, JSONRPCArray{301, "Connect Stratum Server Failed: " + session.miningCoin, nil}}
+		session.writeJSONResponseToClient(&response)
+		session.Stop()
+		return
+	}
+
+	glog.Info("Connect Stratum Server Success: ", session.miningCoin, "; ", serverInfo.URL)
 
 	session.serverConn = serverConn
 	session.serverReader = bufio.NewReader(serverConn)
@@ -358,12 +404,21 @@ func (session *StratumSession) connectStratumServer() {
 }
 
 func (session *StratumSession) proxyStratum() {
+	var running = true
+
 	// 从服务器到客户端
 	go func() {
-		for true {
+		for running {
 			data, err := session.serverReader.ReadBytes('\n')
 
 			if err != nil {
+				// 判断是否进行了服务器切换
+				if !running {
+					// 不断开连接，直接退出函数
+					glog.Info("Downstream: exited by switch coin")
+					break
+				}
+
 				glog.Warning("Read From Server Failed: ", err)
 				session.Stop()
 				break
@@ -379,11 +434,13 @@ func (session *StratumSession) proxyStratum() {
 
 			session.clientWriter.Flush()
 		}
+
+		glog.Info("Downstream: exited")
 	}()
 
 	// 从客户端到服务器
 	go func() {
-		for true {
+		for running {
 			data, err := session.clientReader.ReadBytes('\n')
 
 			if err != nil {
@@ -395,12 +452,83 @@ func (session *StratumSession) proxyStratum() {
 			_, err = session.serverWriter.Write(data)
 
 			if err != nil {
+				// 判断是否进行了服务器切换
+				if !running {
+					// 不断开连接，直接退出函数
+					glog.Info("Upstream: exited by switch coin")
+					break
+				}
+
 				glog.Warning("Read From Client Failed: ", err)
 				session.Stop()
 				break
 			}
 
 			session.serverWriter.Flush()
+		}
+
+		glog.Info("Upstream: exited")
+	}()
+
+	// 监控来自zookeeper的切换指令并进行Stratum切换
+	go func() {
+		for session.IsRunning() {
+			<-session.zkWatchEvent
+
+			if !session.IsRunning() {
+				break
+			}
+
+			data, _, event, err := zookeeperConn.GetW(session.zkWatchPath)
+			session.zkWatchEvent = event
+
+			if err != nil {
+				glog.Error("Read From Zookeeper Failed: ", session.zkWatchPath, "; ", err)
+
+				// 忽略GetW的错误并尝试继续监控
+				_, _, existEvent, err := zookeeperConn.ExistsW(session.zkWatchPath)
+
+				// 还是失败，放弃监控并结束会话
+				if err != nil {
+					glog.Error("Watch From Zookeeper Failed: ", session.zkWatchPath, "; ", err)
+					session.Stop()
+					break
+				}
+
+				session.zkWatchEvent = existEvent
+				continue
+			}
+
+			newMiningCoin := string(data)
+
+			// 若币种未改变，则继续监控
+			if newMiningCoin == session.miningCoin {
+				continue
+			}
+
+			// 若币种对应的Stratum服务器不存在，则忽略事件并继续监控
+			_, exists := stratumServerInfoMap[newMiningCoin]
+			if !exists {
+				glog.Error("Stratum Server Not Found for New Mining Coin: ", newMiningCoin)
+				continue
+			}
+
+			// 开始切换币种
+			glog.Info("Mining Coin Changed: ", session.fullWorkerName, ": ", session.miningCoin, " -> ", newMiningCoin)
+			session.miningCoin = newMiningCoin
+
+			// 设置运行标志
+			running = false
+
+			// 断开旧连接
+			session.serverConn.Close()
+
+			// 建立新连接
+			go session.connectStratumServer()
+
+			// 退出
+			glog.Info("CoinWatcher: exited by switch coin")
+			break
 		}
 	}()
 }
