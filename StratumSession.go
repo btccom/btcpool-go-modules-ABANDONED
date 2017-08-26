@@ -29,8 +29,8 @@ func StratumSessionGlobalInit(serverID uint8) {
 }
 
 // NewStratumSession 创建一个新的 Stratum 会话
-func NewStratumSession(clientConn net.Conn) (StratumSession, error) {
-	var session StratumSession
+func NewStratumSession(clientConn net.Conn) (*StratumSession, error) {
+	session := new(StratumSession)
 
 	session.clientConn = clientConn
 	session.clientReader = bufio.NewReader(clientConn)
@@ -50,12 +50,12 @@ func NewStratumSession(clientConn net.Conn) (StratumSession, error) {
 }
 
 // Run 启动一个 Stratum 会话
-func (session StratumSession) Run() {
+func (session *StratumSession) Run() {
 	session.protocolDetect()
 }
 
 // Stop 停止一个 Stratum 会话
-func (session StratumSession) Stop() {
+func (session *StratumSession) Stop() {
 	session.clientWriter.Flush()
 	session.clientConn.Close()
 
@@ -63,7 +63,7 @@ func (session StratumSession) Stop() {
 	sessionIDManager.FreeSessionID(session.sessionID)
 }
 
-func (session StratumSession) protocolDetect() {
+func (session *StratumSession) protocolDetect() {
 	magicNumber, err := session.clientReader.Peek(1)
 
 	if err != nil {
@@ -85,7 +85,7 @@ func (session StratumSession) protocolDetect() {
 	}
 }
 
-func (session StratumSession) stratumFindWorkerName() {
+func (session *StratumSession) stratumFindWorkerName() {
 	rpcJSON, err := session.clientReader.ReadBytes('\n')
 
 	if err != nil {
@@ -107,7 +107,7 @@ func (session StratumSession) stratumFindWorkerName() {
 	glog.Info(string(jsonBytes))
 }
 
-func (session StratumSession) agentFindWorkerName() {
+func (session *StratumSession) agentFindWorkerName() {
 	glog.Error("proxy of BTC Agent Protocol is not implement now!")
 	session.Stop()
 }
