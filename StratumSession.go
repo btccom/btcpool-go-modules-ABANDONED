@@ -232,10 +232,6 @@ func (session *StratumSession) stratumFindWorkerName() {
 				} else {
 					isSubscribed = true
 
-					// 为请求添加sessionID
-					request.SetParam(session.sessionIDString)
-					data, _ := request.ToJSONBytes()
-					glog.Info(string(data))
 					// 保存原始请求以便转发给Stratum服务器
 					session.stratumSubscribeRequest = request
 
@@ -375,6 +371,19 @@ func (session *StratumSession) connectStratumServer() {
 	session.serverConn = serverConn
 	session.serverReader = bufio.NewReader(serverConn)
 	session.serverWriter = bufio.NewWriter(serverConn)
+
+	// 为请求添加sessionID
+	// API格式：mining.subscribe("user agent/version", "extranonce1")
+	// <https://en.bitcoin.it/wiki/Stratum_mining_protocol>
+
+	// 获取原始的参数1（user agent）
+	userAgent := "stratumSwitcher"
+	if len(session.stratumSubscribeRequest.Params) >= 1 {
+		userAgent, ok = session.stratumSubscribeRequest.Params[0].(string)
+	}
+	glog.Info("UserAgent: ", userAgent)
+
+	session.stratumSubscribeRequest.SetParam(userAgent, session.sessionIDString)
 
 	// 发送mining.subscribe请求给服务器
 	// sessionID已包含在其中，一并发送给服务器
