@@ -15,12 +15,18 @@ type StratumSession struct {
 	clientWriter *bufio.Writer
 
 	// sessionID 会话ID，也做为矿机挖矿时的 Extranonce1
-	sessionID uint32
+	sessionID       uint32
+	sessionIDString string
 }
 
 // sessionIDManager 会话ID管理器实例
-// TODO: 将serverID转移到配置文件
-var sessionIDManager = NewSessionIDManager(1)
+var sessionIDManager *SessionIDManager
+
+// StratumSessionGlobalInit StratumSession功能的全局初始化
+// 需要在使用StratumSession功能之前调用且仅调用一次
+func StratumSessionGlobalInit(serverID uint8) {
+	sessionIDManager = NewSessionIDManager(serverID)
+}
 
 // NewStratumSession 创建一个新的 Stratum 会话
 func NewStratumSession(clientConn net.Conn) (StratumSession, error) {

@@ -23,7 +23,7 @@ type SessionIDManager struct {
 	//   xxxxxxxx     xxxxxxxx xxxxxxxx xxxxxxxx
 	//  ----------    --------------------------
 	//  server ID          session id
-	//   [1, 255]        range: [0, MaxSessionID]
+	//   [1, 255]        range: [0, MaxValidSessionID]
 	//
 	serverID   uint8
 	sessionIDs *bitset.BitSet

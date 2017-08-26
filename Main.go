@@ -8,16 +8,21 @@ import (
 )
 
 func main() {
+	var serverID uint8 = 1
+	var listenAddr = "0.0.0.0:18080"
+
 	flag.Set("alsologtostderr", "true")
 	flag.Parse()
 
-	glog.Info("Listen TCP 0.0.0.0:18080")
-	ln, err := net.Listen("tcp", "0.0.0.0:18080")
+	glog.Info("Listen TCP ", listenAddr)
+	ln, err := net.Listen("tcp", listenAddr)
 
 	if err != nil {
 		glog.Fatal("listen failed: ", err)
 		return
 	}
+
+	StratumSessionGlobalInit(serverID)
 
 	for {
 		conn, err := ln.Accept()
