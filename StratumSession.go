@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"net"
 
 	"github.com/golang/glog"
@@ -14,11 +15,15 @@ type StratumSession struct {
 	clientWriter *bufio.Writer
 
 	// sessionID 会话ID，也做为矿机挖矿时的 Extranonce1
-	sessionID string
+	sessionID uint32
 }
 
+// sessionIDManager 会话ID管理器实例
+// TODO: 将serverID转移到配置文件
+var sessionIDManager = NewSessionIDManager(1)
+
 // NewStratumSession 创建一个新的 Stratum 会话
-func NewStratumSession(clientConn net.Conn) StratumSession {
+func NewStratumSession(clientConn net.Conn) (StratumSession, error) {
 	var session StratumSession
 
 	session.clientConn = clientConn
@@ -26,8 +31,16 @@ func NewStratumSession(clientConn net.Conn) StratumSession {
 	session.clientWriter = bufio.NewWriter(clientConn)
 
 	// 产生 sessionID （Extranonce1）
+	sessionID, success := sessionIDManager.AllocSessionID()
 
-	return session
+	if !success {
+		return session, errors.New("Session ID is Full")
+	}
+
+	session.sessionID = sessionID
+	glog.Info("Session ID: ", sessionID)
+
+	return session, nil
 }
 
 // Run 启动一个 Stratum 会话
@@ -39,6 +52,9 @@ func (session StratumSession) Run() {
 func (session StratumSession) Stop() {
 	session.clientWriter.Flush()
 	session.clientConn.Close()
+
+	// 释放sessionID
+	sessionIDManager.FreeSessionID(session.sessionID)
 }
 
 func (session StratumSession) protocolDetect() {

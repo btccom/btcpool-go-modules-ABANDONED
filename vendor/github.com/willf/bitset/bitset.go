@@ -140,7 +140,7 @@ func (b *BitSet) extendSetMaybe(i uint) {
 }
 
 // Test whether bit i is set.
-func (b *BitSet) Test(i uint) bool {
+func (b *BitSet) 	Test(i uint) bool {
 	if i >= b.length {
 		return false
 	}

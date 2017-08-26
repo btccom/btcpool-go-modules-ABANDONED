@@ -26,7 +26,13 @@ func main() {
 			continue
 		}
 
-		session := NewStratumSession(conn)
+		session, err := NewStratumSession(conn)
+
+		if err != nil {
+			conn.Close()
+			glog.Error("NewStratumSession failed: ", err)
+		}
+
 		go session.Run()
 	}
 }
