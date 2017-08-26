@@ -10,6 +10,7 @@ import (
 func main() {
 	var serverID uint8 = 1
 	var listenAddr = "0.0.0.0:18080"
+	var serverMap = StratumServerInfoMap{"btc": StratumServerInfo{"cn.ss.btc.com:1800"}, "bcc": StratumServerInfo{"cn.ss.btc.com:1800"}}
 
 	flag.Set("alsologtostderr", "true")
 	flag.Parse()
@@ -22,7 +23,7 @@ func main() {
 		return
 	}
 
-	StratumSessionGlobalInit(serverID)
+	StratumSessionGlobalInit(serverID, serverMap)
 
 	for {
 		conn, err := ln.Accept()
