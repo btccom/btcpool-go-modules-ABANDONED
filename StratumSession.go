@@ -230,6 +230,11 @@ func (session *StratumSession) stratumFindWorkerName() {
 					response.Error = JSONRPCArray{24, "Duplicate Subscribed", nil}
 				} else {
 					isSubscribed = true
+
+					// 为请求添加sessionID
+					request.SetParam(session.sessionIDString)
+					data, _ := request.ToJSONBytes()
+					glog.Info(string(data))
 					// 保存原始请求以便转发给Stratum服务器
 					session.stratumSubscribeRequest = request
 
