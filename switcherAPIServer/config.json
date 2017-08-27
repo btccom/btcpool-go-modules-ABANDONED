@@ -1,0 +1,6 @@
+{
+    "ListenAddr": "0.0.0.0:8082",
+    "AvailableCoins": [ "btc", "bcc" ],
+    "ZKBroker": [ "127.0.0.1:2181" ],
+    "ZKSwitcherWatchDir": "/stratumSwitcher/btcbcc/"
+}
