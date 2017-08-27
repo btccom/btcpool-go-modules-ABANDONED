@@ -16,4 +16,4 @@
 # vscode files
 debug
 .vscode/
-/log/
+log/

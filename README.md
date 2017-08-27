@@ -1,3 +1,7 @@
-# Stratum Switcher
+# [Stratum Switcher](stratumSwitcher/)
 
-一个 Stratum 代理，可根据外部指令自动在不同币种的 Stratum 服务器之间进行切换。
+可切换币种的 Stratum 代理
+
+# [Switcher API Server](switcherAPIServer/)
+
+提供触发 Stratum 切换的API
