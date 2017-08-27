@@ -24,6 +24,18 @@ const findWorkerNameTimeoutSeconds = 60
 // 服务器响应subscribe消息的超时时间
 const readSubscribeResponseTimeoutSeconds = 10
 
+// ProtocolType 代理的协议类型
+type ProtocolType int
+
+const (
+	// ProtocolStratum Stratum协议
+	ProtocolStratum = iota
+	// ProtocolBTCAgent BTCAgent协议
+	ProtocolBTCAgent = iota
+	// ProtocolUnknown 未知协议（无法处理）
+	ProtocolUnknown = iota
+)
+
 // StratumSession 是一个 Stratum 会话，包含了到客户端和到服务端的连接及状态信息
 type StratumSession struct {
 	// 是否在运行
@@ -140,7 +152,19 @@ func (session *StratumSession) Run() {
 	session.isRunning = true
 	session.lock.Unlock()
 
-	session.protocolDetect()
+	protocolType, ok := session.protocolDetect()
+
+	if !ok || protocolType == ProtocolUnknown {
+		session.Stop()
+		return
+	}
+
+	switch protocolType {
+	case ProtocolStratum:
+		session.runProxyStratum()
+	case ProtocolBTCAgent:
+		session.runProxyAgent()
+	}
 }
 
 // Stop 停止一个 Stratum 会话
@@ -175,30 +199,58 @@ func (session *StratumSession) Stop() {
 	sessionIDManager.FreeSessionID(session.sessionID)
 }
 
-func (session *StratumSession) protocolDetect() {
+func (session *StratumSession) protocolDetect() (ProtocolType, bool) {
 	magicNumber, err := session.peekFromClientWithTimeout(1, protocolDetectTimeoutSeconds*time.Second)
 
 	if err != nil {
 		glog.Warning("read failed: ", err)
 		session.Stop()
-		return
+		return ProtocolUnknown, false
 	}
 
 	if magicNumber[0] == 0x7F {
 		glog.Info("Found BTC Agent Protocol")
-		session.agentFindWorkerName()
+		return ProtocolBTCAgent, true
 
 	} else if magicNumber[0] == '{' {
 		glog.Info("Found Stratum Protocol")
-		session.stratumFindWorkerName()
+		return ProtocolStratum, true
 
 	} else {
 		glog.Warning("Unknown Protocol")
-		session.Stop()
+		return ProtocolUnknown, true
 	}
 }
 
-func (session *StratumSession) stratumFindWorkerName() {
+func (session *StratumSession) runProxyStratum() {
+	var ok bool
+
+	ok = session.stratumFindWorkerName()
+
+	if !ok {
+		session.Stop()
+		return
+	}
+
+	ok = session.findMiningCoin()
+
+	if !ok {
+		session.Stop()
+		return
+	}
+
+	ok = session.connectStratumServer()
+
+	if !ok {
+		session.Stop()
+		return
+	}
+
+	// 此后转入纯代理模式
+	session.proxyStratum()
+}
+
+func (session *StratumSession) stratumFindWorkerName() bool {
 	e := make(chan error)
 
 	go func() {
@@ -308,20 +360,19 @@ func (session *StratumSession) stratumFindWorkerName() {
 	case err := <-e:
 		if err != nil {
 			glog.Warning(err)
-			session.Stop()
-		} else {
-			glog.Info("FindWorkerName Success: ", session.fullWorkerName)
-
-			// 找到用户想挖的币种
-			session.findMiningCoin()
+			return false
 		}
+
+		glog.Info("FindWorkerName Success: ", session.fullWorkerName)
+		return true
+
 	case <-time.After(findWorkerNameTimeoutSeconds * time.Second):
 		glog.Warning("FindWorkerName Timeout")
-		session.Stop()
+		return false
 	}
 }
 
-func (session *StratumSession) findMiningCoin() {
+func (session *StratumSession) findMiningCoin() bool {
 	// 从zookeeper读取用户想挖的币种
 
 	session.zkWatchPath = zookeeperSwitcherWatchDir + session.subaccountName
@@ -333,17 +384,16 @@ func (session *StratumSession) findMiningCoin() {
 		response := JSONRPCResponse{nil, nil, JSONRPCArray{201, "Cannot Found Minning Coin Type", nil}}
 		session.writeJSONResponseToClient(&response)
 
-		session.Stop()
-		return
+		return false
 	}
 
 	session.miningCoin = string(data)
 	session.zkWatchEvent = event
 
-	session.connectStratumServer()
+	return true
 }
 
-func (session *StratumSession) connectStratumServer() {
+func (session *StratumSession) connectStratumServer() bool {
 	serverInfo, ok := stratumServerInfoMap[session.miningCoin]
 
 	if !ok {
@@ -351,8 +401,7 @@ func (session *StratumSession) connectStratumServer() {
 
 		response := JSONRPCResponse{nil, nil, JSONRPCArray{301, "Stratum Server Not Found: " + session.miningCoin, nil}}
 		session.writeJSONResponseToClient(&response)
-		session.Stop()
-		return
+		return false
 	}
 
 	serverConn, err := net.Dial("tcp", serverInfo.URL)
@@ -362,8 +411,7 @@ func (session *StratumSession) connectStratumServer() {
 
 		response := JSONRPCResponse{nil, nil, JSONRPCArray{301, "Connect Stratum Server Failed: " + session.miningCoin, nil}}
 		session.writeJSONResponseToClient(&response)
-		session.Stop()
-		return
+		return false
 	}
 
 	glog.Info("Connect Stratum Server Success: ", session.miningCoin, "; ", serverInfo.URL)
@@ -391,16 +439,14 @@ func (session *StratumSession) connectStratumServer() {
 
 	if err != nil {
 		glog.Warning("Write Subscribe Request Failed: ", err)
-		session.Stop()
-		return
+		return false
 	}
 
 	responseJSON, err := session.readLineFromServerWithTimeout(readSubscribeResponseTimeoutSeconds * time.Second)
 
 	if err != nil {
 		glog.Warning("Read Subscribe Response Failed: ", err)
-		session.Stop()
-		return
+		return false
 	}
 
 	// 检查服务器返回的 sessionID 与当前保存的是否一致
@@ -408,36 +454,31 @@ func (session *StratumSession) connectStratumServer() {
 
 	if err != nil {
 		glog.Warning("Parse Subscribe Response Failed: ", err)
-		session.Stop()
-		return
+		return false
 	}
 
 	result, ok := response.Result.([]interface{})
 
 	if !ok {
 		glog.Warning("Parse Subscribe Response Failed")
-		session.Stop()
-		return
+		return false
 	}
 
 	if len(result) < 2 {
 		glog.Warning("Field too Few of Subscribe Response Result: ", err)
-		session.Stop()
-		return
+		return false
 	}
 
 	sessionID, ok := result[1].(string)
 
 	if !ok {
 		glog.Warning("Parse Subscribe Response Failed")
-		session.Stop()
-		return
+		return false
 	}
 
 	if sessionID != session.sessionIDString {
 		glog.Warning("Session ID Inconformity:  ", sessionID, " != ", session.sessionIDString)
-		session.Stop()
-		return
+		return false
 	}
 
 	glog.Info("Subscribe Success: ", string(responseJSON))
@@ -451,8 +492,7 @@ func (session *StratumSession) connectStratumServer() {
 
 	if err != nil {
 		glog.Warning("Write Authorize Request Failed: ", err)
-		session.Stop()
-		return
+		return false
 	}
 
 	// 检查mining.authorize是否成功，若不成功，则去掉币种后缀重试。
@@ -462,16 +502,14 @@ func (session *StratumSession) connectStratumServer() {
 
 	if err != nil {
 		glog.Warning("Read Subscribe Response Failed: ", err)
-		session.Stop()
-		return
+		return false
 	}
 
 	response, err = NewJSONRPCResponse(responseJSON)
 
 	if err != nil {
 		glog.Warning("Parse Subscribe Response Failed: ", err)
-		session.Stop()
-		return
+		return false
 	}
 
 	success, ok := response.Result.(bool)
@@ -487,8 +525,7 @@ func (session *StratumSession) connectStratumServer() {
 
 		if err != nil {
 			glog.Warning("Write Authorize Request Failed: ", err)
-			session.Stop()
-			return
+			return false
 		}
 
 		// 不需要再读出结果了，直接进入纯代理
@@ -499,15 +536,13 @@ func (session *StratumSession) connectStratumServer() {
 
 		if err != nil {
 			glog.Warning("Write Authorize Response to Client Failed: ", err)
-			session.Stop()
-			return
+			return false
 		}
 
 		session.clientWriter.Flush()
 	}
 
-	// 此后转入纯代理模式
-	session.proxyStratum()
+	return true
 }
 
 func (session *StratumSession) proxyStratum() {
@@ -631,7 +666,15 @@ func (session *StratumSession) proxyStratum() {
 			session.serverConn.Close()
 
 			// 建立新连接
-			go session.connectStratumServer()
+			ok := session.connectStratumServer()
+
+			if !ok {
+				session.Stop()
+				break
+			}
+
+			// 转入代理模式
+			session.proxyStratum()
 
 			// 退出
 			glog.Info("CoinWatcher: exited by switch coin")
@@ -640,7 +683,7 @@ func (session *StratumSession) proxyStratum() {
 	}()
 }
 
-func (session *StratumSession) agentFindWorkerName() {
+func (session *StratumSession) runProxyAgent() {
 	glog.Error("proxy of BTC Agent Protocol is not implement now!")
 	session.Stop()
 }
