@@ -39,6 +39,11 @@ func main() {
 		return
 	}
 
+	// 若zookeeper路径不以“/”结尾，则添加
+	if configData.ZKSwitcherWatchDir[len(configData.ZKSwitcherWatchDir)-1] != '/' {
+		configData.ZKSwitcherWatchDir += "/"
+	}
+
 	// TCP监听
 	glog.Info("Listen TCP ", configData.ListenAddr)
 	ln, err := net.Listen("tcp", configData.ListenAddr)
