@@ -1,0 +1,10 @@
+{
+    "ServerID": 1,
+    "ListenAddr": "0.0.0.0:18080",
+    "StratumServerMap": {
+        "btc": { "URL": "127.0.0.1:3333" },
+        "bcc": { "URL": "127.0.0.1:4444" }
+    },
+    "ZKBroker": [ "127.0.0.1:2181" ],
+    "ZKSwitcherWatchDir": "/stratumSwitcher/btcbcc/"
+}

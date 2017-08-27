@@ -1,31 +1,54 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
+	"io/ioutil"
 	"net"
 
 	"github.com/golang/glog"
 )
 
-func main() {
-	var serverID uint8 = 1
-	var listenAddr = "0.0.0.0:18080"
-	var zkBroker = []string{"127.0.0.1:2181"}
-	var zkSwitcherWatchDir = "/stratumSwitcher/btcbcc/"
-	var serverMap = StratumServerInfoMap{"btc": StratumServerInfo{"cn.ss.btc.com:1800"}, "bcc": StratumServerInfo{"cn.ss.btc.com:443"}}
+// ConfigData 配置数据
+type ConfigData struct {
+	ServerID           uint8
+	ListenAddr         string
+	StratumServerMap   StratumServerInfoMap
+	ZKBroker           []string
+	ZKSwitcherWatchDir string // 以斜杠结尾
+}
 
-	flag.Set("alsologtostderr", "true")
+func main() {
+	// 解析命令行参数
+	configFilePath := flag.String("config", "./config.json", "Path of config file")
 	flag.Parse()
 
-	glog.Info("Listen TCP ", listenAddr)
-	ln, err := net.Listen("tcp", listenAddr)
+	// 读取配置文件
+	configJSON, err := ioutil.ReadFile(*configFilePath)
+
+	if err != nil {
+		glog.Fatal("read config failed: ", err)
+		return
+	}
+
+	configData := new(ConfigData)
+	err = json.Unmarshal(configJSON, configData)
+
+	if err != nil {
+		glog.Fatal("parse config failed: ", err)
+		return
+	}
+
+	// TCP监听
+	glog.Info("Listen TCP ", configData.ListenAddr)
+	ln, err := net.Listen("tcp", configData.ListenAddr)
 
 	if err != nil {
 		glog.Fatal("listen failed: ", err)
 		return
 	}
 
-	err = StratumSessionGlobalInit(serverID, serverMap, zkBroker, zkSwitcherWatchDir)
+	err = StratumSessionGlobalInit(configData.ServerID, configData.StratumServerMap, configData.ZKBroker, configData.ZKSwitcherWatchDir)
 
 	if err != nil {
 		glog.Fatal("init failed: ", err)
