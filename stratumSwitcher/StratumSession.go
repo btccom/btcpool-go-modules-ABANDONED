@@ -29,6 +29,9 @@ const readSubscribeResponseTimeoutSeconds = 10
 // 因此设置接收超时时间，每隔一定时间就放弃接收，检查状态，并重新开始接收
 const receiveMessageTimeoutSeconds = 15
 
+// Zookeeper连接超时时间
+const zookeeperConnTimeout = 5
+
 // ProtocolType 代理的协议类型
 type ProtocolType int
 
@@ -111,7 +114,7 @@ func StratumSessionGlobalInit(serverID uint8, serverMap StratumServerInfoMap, zk
 	zookeeperSwitcherWatchDir = zkSwitcherWatchDir
 
 	// 建立到Zookeeper集群的连接
-	conn, _, err := zk.Connect(zkBrokers, time.Second)
+	conn, _, err := zk.Connect(zkBrokers, time.Duration(zookeeperConnTimeout)*time.Second)
 
 	if err != nil {
 		return errors.New("Connect Zookeeper Failed: " + err.Error())

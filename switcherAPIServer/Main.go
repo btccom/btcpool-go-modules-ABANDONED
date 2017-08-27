@@ -11,6 +11,9 @@ import (
 	"github.com/samuel/go-zookeeper/zk"
 )
 
+// Zookeeper连接超时时间
+const zookeeperConnTimeout = 5
+
 // ConfigData 配置数据
 type ConfigData struct {
 	// 是否启用 API Server
@@ -70,7 +73,7 @@ func main() {
 	}
 
 	// 建立到Zookeeper集群的连接
-	conn, _, err := zk.Connect(configData.ZKBroker, time.Second)
+	conn, _, err := zk.Connect(configData.ZKBroker, time.Duration(zookeeperConnTimeout)*time.Second)
 
 	if err != nil {
 		glog.Fatal("Connect Zookeeper Failed: ", err)
