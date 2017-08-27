@@ -38,91 +38,13 @@ func switchHandle(w http.ResponseWriter, req *http.Request) {
 
 	puname := params.Get("puname")
 	coin := params.Get("coin")
-	oldCoin := ""
 
-	if len(puname) < 1 {
-		glog.Info("puname is empty: ", req.RequestURI)
-		writeError(w, 101, "puname is empty")
-		return
-	}
-
-	if strings.Contains(puname, "/") {
-		glog.Info("puname invalid: ", req.RequestURI)
-		writeError(w, 102, "puname invalid")
-		return
-	}
-
-	if len(coin) < 1 {
-		glog.Info("coin is empty: ", req.RequestURI)
-		writeError(w, 103, "coin is empty")
-		return
-	}
-
-	// 检查币种是否存在
-	exists := false
-
-	for _, availableCoin := range configData.AvailableCoins {
-		if availableCoin == coin {
-			exists = true
-			break
-		}
-	}
-
-	if !exists {
-		glog.Info("coin is inexistent: ", req.RequestURI)
-		writeError(w, 104, "coin is inexistent")
-		return
-	}
-
-	// stratumSwitcher 监控的键
-	zkPath := configData.ZKSwitcherWatchDir + puname
-
-	// 看看键是否存在
-	exists, _, err := zookeeperConn.Exists(zkPath)
+	oldCoin, err := changeMiningCoin(puname, coin)
 
 	if err != nil {
-		glog.Info("read zookeeper failed: ", req.RequestURI, "; ", err)
-		writeError(w, 105, "read record failed")
+		glog.Info(err, ": ", req.RequestURI)
+		writeError(w, err.ErrNo, err.ErrMsg)
 		return
-	}
-
-	if exists {
-		// 读取zookeeper看看原来的值是多少
-		oldCoinData, _, err := zookeeperConn.Get(zkPath)
-
-		if err != nil {
-			glog.Info("read zookeeper failed: ", req.RequestURI, "; ", err)
-			writeError(w, 106, "read record failed")
-			return
-		}
-
-		oldCoin = string(oldCoinData)
-
-		// 没有改变
-		if oldCoin == coin {
-			glog.Info("no change: ", req.RequestURI)
-			writeError(w, 107, "no change")
-			return
-		}
-
-		// 写入新值
-		_, err = zookeeperConn.Set(zkPath, []byte(coin), -1)
-
-		if err != nil {
-			glog.Info("write zookeeper node failed: ", req.RequestURI, "; ", err)
-			writeError(w, 107, "write record failed")
-			return
-		}
-
-	} else {
-		// 不存在，直接创建
-		_, err = zookeeperConn.Create(zkPath, []byte(coin), 0, zk.WorldACL(zk.PermAll))
-
-		if err != nil {
-			glog.Info("create zookeeper node failed: ", req.RequestURI, "; ", err)
-			writeError(w, 107, "write record failed")
-			return
-		}
 	}
 
 	glog.Info("success: ", puname, ": ", oldCoin, " -> ", coin)
@@ -141,4 +63,91 @@ func writeError(w http.ResponseWriter, errNo int, errMsg string) {
 	responseJSON, _ := json.Marshal(response)
 
 	w.Write(responseJSON)
+}
+
+func changeMiningCoin(puname string, coin string) (oldCoin string, apiErr *APIError) {
+	oldCoin = ""
+
+	if len(puname) < 1 {
+		apiErr = APIErrPunameIsEmpty
+		return
+	}
+
+	if strings.Contains(puname, "/") {
+		apiErr = APIErrPunameInvalid
+		return
+	}
+
+	if len(coin) < 1 {
+		apiErr = APIErrCoinIsEmpty
+		return
+	}
+
+	// 检查币种是否存在
+	exists := false
+
+	for _, availableCoin := range configData.AvailableCoins {
+		if availableCoin == coin {
+			exists = true
+			break
+		}
+	}
+
+	if !exists {
+		apiErr = APIErrCoinIsInexistent
+		return
+	}
+
+	// stratumSwitcher 监控的键
+	zkPath := configData.ZKSwitcherWatchDir + puname
+
+	// 看看键是否存在
+	exists, _, err := zookeeperConn.Exists(zkPath)
+
+	if err != nil {
+		glog.Error("zk.Exists(", zkPath, ") Failed: ", err)
+		apiErr = APIErrReadRecordFailed
+		return
+	}
+
+	if exists {
+		// 读取zookeeper看看原来的值是多少
+		oldCoinData, _, err := zookeeperConn.Get(zkPath)
+
+		if err != nil {
+			glog.Error("zk.Get(", zkPath, ") Failed: ", err)
+			apiErr = APIErrReadRecordFailed
+			return
+		}
+
+		oldCoin = string(oldCoinData)
+
+		// 没有改变
+		if oldCoin == coin {
+			apiErr = APIErrCoinNoChange
+			return
+		}
+
+		// 写入新值
+		_, err = zookeeperConn.Set(zkPath, []byte(coin), -1)
+
+		if err != nil {
+			glog.Error("zk.Set(", zkPath, ",", coin, ") Failed: ", err)
+			apiErr = APIErrWriteRecordFailed
+			return
+		}
+
+	} else {
+		// 不存在，直接创建
+		_, err = zookeeperConn.Create(zkPath, []byte(coin), 0, zk.WorldACL(zk.PermAll))
+
+		if err != nil {
+			glog.Error("zk.Create(", zkPath, ",", coin, ") Failed: ", err)
+			apiErr = APIErrWriteRecordFailed
+			return
+		}
+	}
+
+	apiErr = nil
+	return
 }
