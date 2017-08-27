@@ -24,6 +24,11 @@ const findWorkerNameTimeoutSeconds = 60
 // 服务器响应subscribe消息的超时时间
 const readSubscribeResponseTimeoutSeconds = 10
 
+// 纯代理模式下接收消息的超时时间
+// 若长时间接收不到消息，就无法及时处理对端已断开事件，
+// 因此设置接收超时时间，每隔一定时间就放弃接收，检查状态，并重新开始接收
+const receiveMessageTimeoutSeconds = 15
+
 // ProtocolType 代理的协议类型
 type ProtocolType int
 
@@ -34,6 +39,11 @@ const (
 	ProtocolBTCAgent = iota
 	// ProtocolUnknown 未知协议（无法处理）
 	ProtocolUnknown = iota
+)
+
+var (
+	// ErrReadLineTimeout 从bufio.Reader中读取一行超时
+	ErrReadLineTimeout = errors.New("Readline Timeout")
 )
 
 // StratumSession 是一个 Stratum 会话，包含了到客户端和到服务端的连接及状态信息
@@ -551,7 +561,11 @@ func (session *StratumSession) proxyStratum() {
 	// 从服务器到客户端
 	go func() {
 		for running {
-			data, err := session.serverReader.ReadBytes('\n')
+			data, err := session.readLineFromServerWithTimeout(receiveMessageTimeoutSeconds * time.Second)
+
+			if err == ErrReadLineTimeout {
+				continue
+			}
 
 			if err != nil {
 				// 判断是否进行了服务器切换
@@ -583,7 +597,11 @@ func (session *StratumSession) proxyStratum() {
 	// 从客户端到服务器
 	go func() {
 		for running {
-			data, err := session.clientReader.ReadBytes('\n')
+			data, err := session.readLineFromClientWithTimeout(receiveMessageTimeoutSeconds * time.Second)
+
+			if err == ErrReadLineTimeout {
+				continue
+			}
 
 			if err != nil {
 				glog.Warning("Read From Client Failed: ", err)
@@ -615,7 +633,15 @@ func (session *StratumSession) proxyStratum() {
 	// 监控来自zookeeper的切换指令并进行Stratum切换
 	go func() {
 		for session.IsRunning() {
-			<-session.zkWatchEvent
+
+			select {
+			case <-session.zkWatchEvent:
+				// 接收到数据，继续后续流程
+
+			case <-time.After(receiveMessageTimeoutSeconds * time.Second):
+				// 超时，继续下一轮循环（若session已停止，将在下一轮中退出）
+				continue
+			}
 
 			if !session.IsRunning() {
 				break
@@ -680,6 +706,8 @@ func (session *StratumSession) proxyStratum() {
 			glog.Info("CoinWatcher: exited by switch coin")
 			break
 		}
+
+		glog.Info("CoinWatcher: exited")
 	}()
 }
 
@@ -742,7 +770,7 @@ func readLineWithTimeout(reader *bufio.Reader, timeout time.Duration) ([]byte, e
 	case err := <-e:
 		return nil, err
 	case <-time.After(timeout):
-		return nil, errors.New("ReadLine Timeout")
+		return nil, ErrReadLineTimeout
 	}
 }
 
