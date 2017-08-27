@@ -9,6 +9,12 @@
 			"revisionTime": "2016-01-25T20:49:56Z"
 		},
 		{
+			"checksumSHA1": "Vo8anQz2gbx3FnURv/wpv57zWP4=",
+			"path": "github.com/samuel/go-zookeeper/zk",
+			"revision": "e6b59f6144beb8570562539c1898a0b1fea34b41",
+			"revisionTime": "2017-08-15T20:11:39Z"
+		},
+		{
 			"checksumSHA1": "6KZEap6v/5gD+tjiNbpD81kD61o=",
 			"path": "github.com/willf/bitset",
 			"revision": "988f4f24992fc745de53c42df0da6581e42a6686",
