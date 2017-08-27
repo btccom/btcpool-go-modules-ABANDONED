@@ -44,6 +44,8 @@ const (
 var (
 	// ErrReadLineTimeout 从bufio.Reader中读取一行超时
 	ErrReadLineTimeout = errors.New("Readline Timeout")
+	// ErrSessionIDFull SessionID已满（所有可用值均已分配）
+	ErrSessionIDFull = errors.New("Session ID is Full")
 )
 
 // StratumSession 是一个 Stratum 会话，包含了到客户端和到服务端的连接及状态信息
@@ -133,7 +135,7 @@ func NewStratumSession(clientConn net.Conn) (*StratumSession, error) {
 	sessionID, success := sessionIDManager.AllocSessionID()
 
 	if !success {
-		return session, errors.New("Session ID is Full")
+		return session, ErrSessionIDFull
 	}
 
 	session.sessionID = sessionID
@@ -143,7 +145,7 @@ func NewStratumSession(clientConn net.Conn) (*StratumSession, error) {
 	binary.Write(bytesBuffer, binary.BigEndian, sessionID)
 	session.sessionIDString = hex.EncodeToString(bytesBuffer.Bytes())
 
-	glog.Info("Session ID: ", session.sessionIDString)
+	glog.V(3).Info("Session ID: ", session.sessionIDString)
 
 	return session, nil
 }
@@ -207,6 +209,8 @@ func (session *StratumSession) Stop() {
 
 	// 释放sessionID
 	sessionIDManager.FreeSessionID(session.sessionID)
+
+	glog.V(2).Info("Session Stoped: ", session.fullWorkerName)
 }
 
 func (session *StratumSession) protocolDetect() (ProtocolType, bool) {
@@ -219,11 +223,11 @@ func (session *StratumSession) protocolDetect() (ProtocolType, bool) {
 	}
 
 	if magicNumber[0] == 0x7F {
-		glog.Info("Found BTC Agent Protocol")
+		glog.V(3).Info("Found BTC Agent Protocol")
 		return ProtocolBTCAgent, true
 
 	} else if magicNumber[0] == '{' {
-		glog.Info("Found Stratum Protocol")
+		glog.V(3).Info("Found Stratum Protocol")
 		return ProtocolStratum, true
 
 	} else {
@@ -319,8 +323,6 @@ func (session *StratumSession) stratumFindWorkerName() bool {
 								session.minerName = ""
 							}
 
-							glog.Info(session.subaccountName, " ", session.minerName)
-
 							if len(session.subaccountName) >= 1 {
 
 								// 保存原始请求以便转发给Stratum服务器
@@ -373,7 +375,7 @@ func (session *StratumSession) stratumFindWorkerName() bool {
 			return false
 		}
 
-		glog.Info("FindWorkerName Success: ", session.fullWorkerName)
+		glog.V(2).Info("FindWorkerName Success: ", session.fullWorkerName)
 		return true
 
 	case <-time.After(findWorkerNameTimeoutSeconds * time.Second):
@@ -424,7 +426,7 @@ func (session *StratumSession) connectStratumServer() bool {
 		return false
 	}
 
-	glog.Info("Connect Stratum Server Success: ", session.miningCoin, "; ", serverInfo.URL)
+	glog.V(3).Info("Connect Stratum Server Success: ", session.miningCoin, "; ", serverInfo.URL)
 
 	session.serverConn = serverConn
 	session.serverReader = bufio.NewReader(serverConn)
@@ -439,7 +441,7 @@ func (session *StratumSession) connectStratumServer() bool {
 	if len(session.stratumSubscribeRequest.Params) >= 1 {
 		userAgent, ok = session.stratumSubscribeRequest.Params[0].(string)
 	}
-	glog.Info("UserAgent: ", userAgent)
+	glog.V(3).Info("UserAgent: ", userAgent)
 
 	session.stratumSubscribeRequest.SetParam(userAgent, session.sessionIDString)
 
@@ -491,7 +493,7 @@ func (session *StratumSession) connectStratumServer() bool {
 		return false
 	}
 
-	glog.Info("Subscribe Success: ", string(responseJSON))
+	glog.V(3).Info("Subscribe Success: ", string(responseJSON))
 
 	// 子账户名添加币种后缀
 	fullWorkerNameWithCoinPostfix := session.subaccountName + "_" + session.miningCoin + "." + session.minerName
@@ -571,11 +573,11 @@ func (session *StratumSession) proxyStratum() {
 				// 判断是否进行了服务器切换
 				if !running {
 					// 不断开连接，直接退出函数
-					glog.Info("Downstream: exited by switch coin")
+					glog.V(3).Info("Downstream: exited by switch coin")
 					break
 				}
 
-				glog.Warning("Read From Server Failed: ", err)
+				glog.V(3).Info("Read From Server Failed: ", err)
 				session.Stop()
 				break
 			}
@@ -583,7 +585,7 @@ func (session *StratumSession) proxyStratum() {
 			_, err = session.clientWriter.Write(data)
 
 			if err != nil {
-				glog.Warning("Read From Server Failed: ", err)
+				glog.V(3).Info("Write To Client Failed: ", err)
 				session.Stop()
 				break
 			}
@@ -591,7 +593,7 @@ func (session *StratumSession) proxyStratum() {
 			session.clientWriter.Flush()
 		}
 
-		glog.Info("Downstream: exited")
+		glog.V(3).Info("Downstream: exited")
 	}()
 
 	// 从客户端到服务器
@@ -604,7 +606,7 @@ func (session *StratumSession) proxyStratum() {
 			}
 
 			if err != nil {
-				glog.Warning("Read From Client Failed: ", err)
+				glog.V(3).Info("Read From Client Failed: ", err)
 				session.Stop()
 				break
 			}
@@ -615,11 +617,11 @@ func (session *StratumSession) proxyStratum() {
 				// 判断是否进行了服务器切换
 				if !running {
 					// 不断开连接，直接退出函数
-					glog.Info("Upstream: exited by switch coin")
+					glog.V(3).Info("Upstream: exited by switch coin")
 					break
 				}
 
-				glog.Warning("Read From Client Failed: ", err)
+				glog.V(3).Info("Write To Server Failed: ", err)
 				session.Stop()
 				break
 			}
@@ -627,7 +629,7 @@ func (session *StratumSession) proxyStratum() {
 			session.serverWriter.Flush()
 		}
 
-		glog.Info("Upstream: exited")
+		glog.V(3).Info("Upstream: exited")
 	}()
 
 	// 监控来自zookeeper的切换指令并进行Stratum切换
@@ -682,7 +684,7 @@ func (session *StratumSession) proxyStratum() {
 			}
 
 			// 开始切换币种
-			glog.Info("Mining Coin Changed: ", session.fullWorkerName, ": ", session.miningCoin, " -> ", newMiningCoin)
+			glog.V(2).Info("Mining Coin Changed: ", session.fullWorkerName, ": ", session.miningCoin, " -> ", newMiningCoin)
 			session.miningCoin = newMiningCoin
 
 			// 设置运行标志
@@ -703,11 +705,11 @@ func (session *StratumSession) proxyStratum() {
 			session.proxyStratum()
 
 			// 退出
-			glog.Info("CoinWatcher: exited by switch coin")
+			glog.V(3).Info("CoinWatcher: exited by switch coin")
 			break
 		}
 
-		glog.Info("CoinWatcher: exited")
+		glog.V(3).Info("CoinWatcher: exited")
 	}()
 }
 
