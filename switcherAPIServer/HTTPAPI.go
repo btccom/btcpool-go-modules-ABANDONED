@@ -123,10 +123,12 @@ func changeMiningCoin(puname string, coin string) (oldCoin string, apiErr *APIEr
 		oldCoin = string(oldCoinData)
 
 		// 没有改变
-		if oldCoin == coin {
+		// 没有改变不再返回错误，这样一来，如果stratumSwitcher错过了前一个切换消息，可以再收到一次切换消息以完成切换
+		// 在stratumSwitcher那里，如果币种确实没有发生改变，切换就不会发生
+		/*if oldCoin == coin {
 			apiErr = APIErrCoinNoChange
 			return
-		}
+		}*/
 
 		// 写入新值
 		_, err = zookeeperConn.Set(zkPath, []byte(coin), -1)
