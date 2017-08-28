@@ -41,17 +41,8 @@ type ProtocolType int
 const (
 	// ProtocolStratum Stratum协议
 	ProtocolStratum = iota
-	// ProtocolBTCAgent BTCAgent协议
-	ProtocolBTCAgent = iota
 	// ProtocolUnknown 未知协议（无法处理）
 	ProtocolUnknown = iota
-)
-
-var (
-	// ErrBufIOReadTimeout 从bufio.Reader中读取数据时超时
-	ErrBufIOReadTimeout = errors.New("BufIO Read Timeout")
-	// ErrSessionIDFull SessionID已满（所有可用值均已分配）
-	ErrSessionIDFull = errors.New("Session ID is Full")
 )
 
 // StratumSession 是一个 Stratum 会话，包含了到客户端和到服务端的连接及状态信息
@@ -73,9 +64,9 @@ type StratumSession struct {
 	sessionID       uint32
 	sessionIDString string
 
-	fullWorkerName string
-	subaccountName string
-	minerName      string
+	fullWorkerName   string // 完整的矿工名
+	subaccountName   string // 子账户名部分
+	minerNameWithDot string // 矿机名部分（包含前导“.”）
 
 	stratumSubscribeRequest *JSONRPCRequest
 	stratumAuthorizeRequest *JSONRPCRequest
@@ -167,22 +158,25 @@ func (session *StratumSession) IsRunning() bool {
 // Run 启动一个 Stratum 会话
 func (session *StratumSession) Run() {
 	session.lock.Lock()
+
+	if session.isRunning {
+		defer session.lock.Unlock()
+		return
+	}
+
 	session.isRunning = true
 	session.lock.Unlock()
 
-	protocolType, ok := session.protocolDetect()
+	protocolType := session.protocolDetect()
 
-	if !ok || protocolType == ProtocolUnknown {
+	// 其实目前只有一种协议，即Stratum协议
+	// BTCAgent在认证完成之前走的也是Stratum协议
+	if protocolType != ProtocolStratum {
 		session.Stop()
 		return
 	}
 
-	switch protocolType {
-	case ProtocolStratum:
-		session.runProxyStratum()
-	case ProtocolBTCAgent:
-		session.runProxyAgent()
-	}
+	session.runProxyStratum()
 }
 
 // Stop 停止一个 Stratum 会话
@@ -219,13 +213,12 @@ func (session *StratumSession) Stop() {
 	glog.V(2).Info("Session Stoped: ", session.fullWorkerName)
 }
 
-func (session *StratumSession) protocolDetect() (ProtocolType, bool) {
+func (session *StratumSession) protocolDetect() ProtocolType {
 	magicNumber, err := session.peekFromClientWithTimeout(1, protocolDetectTimeoutSeconds*time.Second)
 
 	if err != nil {
 		glog.Warning("read failed: ", err)
-		session.Stop()
-		return ProtocolUnknown, false
+		return ProtocolUnknown
 	}
 
 	// 从客户端收到的第一个报文一定是Stratum协议的JSON字符串。
@@ -236,33 +229,33 @@ func (session *StratumSession) protocolDetect() (ProtocolType, bool) {
 	// 另一方面，我们无法在最开始就检测出客户端是BTC Agent，我们要随时做好收到ex-message的准备。
 	if magicNumber[0] != '{' {
 		glog.Warning("Unknown Protocol")
-		return ProtocolUnknown, true
+		return ProtocolUnknown
 	}
 
 	glog.V(3).Info("Found Stratum Protocol")
-	return ProtocolStratum, true
+	return ProtocolStratum
 }
 
 func (session *StratumSession) runProxyStratum() {
-	var ok bool
+	var err error
 
-	ok = session.stratumFindWorkerName()
+	err = session.stratumFindWorkerName()
 
-	if !ok {
+	if err != nil {
 		session.Stop()
 		return
 	}
 
-	ok = session.findMiningCoin()
+	err = session.findMiningCoin()
 
-	if !ok {
+	if err != nil {
 		session.Stop()
 		return
 	}
 
-	ok = session.connectStratumServer()
+	err = session.connectStratumServer()
 
-	if !ok {
+	if err != nil {
 		session.Stop()
 		return
 	}
@@ -271,13 +264,13 @@ func (session *StratumSession) runProxyStratum() {
 	session.proxyStratum()
 }
 
-func (session *StratumSession) stratumFindWorkerName() bool {
+func (session *StratumSession) stratumFindWorkerName() error {
 	e := make(chan error)
 
 	go func() {
-		isSubscribed := false
 		response := new(JSONRPCResponse)
 
+		// 矿机订阅
 		for true {
 			requestJSON, err := session.clientReader.ReadBytes('\n')
 
@@ -294,80 +287,108 @@ func (session *StratumSession) stratumFindWorkerName() bool {
 				continue
 			}
 
+			result, stratumErr := func() (interface{}, *StratumError) {
+				if request.Method != "mining.subscribe" {
+					return nil, StratumErrNeedSubscribed
+				}
+
+				// 保存原始订阅请求以便转发给Stratum服务器
+				session.stratumSubscribeRequest = request
+
+				// 生成响应
+				result := JSONRPCArray{JSONRPCArray{JSONRPCArray{"mining.set_difficulty", session.sessionIDString}, JSONRPCArray{"mining.notify", session.sessionIDString}}, session.sessionIDString, 8}
+				return result, nil
+			}()
+
 			response.ID = request.ID
-			response.Result = nil
-			response.Error = nil
-
-			if request.Method == "mining.subscribe" {
-				if isSubscribed {
-					response.Result = nil
-					response.Error = JSONRPCArray{24, "Duplicate Subscribed", nil}
-				} else {
-					isSubscribed = true
-
-					// 保存原始请求以便转发给Stratum服务器
-					session.stratumSubscribeRequest = request
-
-					response.Result = JSONRPCArray{JSONRPCArray{JSONRPCArray{"mining.set_difficulty", session.sessionIDString}, JSONRPCArray{"mining.notify", session.sessionIDString}}, session.sessionIDString, 8}
-					response.Error = nil
-				}
-			} else if request.Method == "mining.authorize" {
-				if isSubscribed {
-					if len(request.Params) >= 1 {
-						fullWorkerName, ok := request.Params[0].(string)
-
-						if ok {
-							// 矿工名
-							session.fullWorkerName = strings.TrimSpace(fullWorkerName)
-
-							if strings.Contains(session.fullWorkerName, ".") {
-								// 截取“.”之前的做为子账户名，之后的做矿机名
-								pos := strings.Index(session.fullWorkerName, ".")
-								session.subaccountName = session.fullWorkerName[:pos]
-								session.minerName = session.fullWorkerName[pos+1:]
-							} else {
-								session.subaccountName = session.fullWorkerName
-								session.minerName = ""
-							}
-
-							if len(session.subaccountName) >= 1 {
-
-								// 保存原始请求以便转发给Stratum服务器
-								session.stratumAuthorizeRequest = request
-
-								// 发送一个空错误到channel，表示成功
-								e <- nil
-								// 跳出循环，不发送响应给矿机，该响应直接由Stratum服务器发送
-								break
-
-							} else {
-								response.Result = nil
-								response.Error = JSONRPCArray{105, "Worker Name Cannot Start with '.'", nil}
-							}
-
-						} else {
-							response.Result = nil
-							response.Error = JSONRPCArray{104, "Worker Name is Not a String", nil}
-						}
-
-					} else {
-						response.Result = nil
-						response.Error = JSONRPCArray{103, "Too Few Params", nil}
-					}
-
-				} else {
-					response.Result = nil
-					response.Error = JSONRPCArray{102, "Not Subscribed", nil}
-				}
-			} else {
-				response.Result = nil
-				response.Error = JSONRPCArray{101, "Unknown Method", nil}
-			}
+			response.Result = result
+			response.Error = stratumErr.ToJSONRPCArray()
 
 			_, err = session.writeJSONResponseToClient(response)
 
 			if err != nil {
 				e <- errors.New("Write JSON Response Failed: " + err.Error())
+				break
+			}
+
+			// 如果订阅成功则跳出循环
+			if stratumErr == nil {
+				break
+			}
+		}
+
+		// 矿机认证
+		for true {
+			requestJSON, err := session.clientReader.ReadBytes('\n')
+
+			if err != nil {
+				e <- errors.New("read line failed: " + err.Error())
+				break
+			}
+
+			request, err := NewJSONRPCRequest(requestJSON)
+
+			// ignore the json decode error
+			if err != nil {
+				glog.Warning("JSON decode failed: ", err.Error(), string(requestJSON))
+				continue
+			}
+
+			result, stratumErr := func() (interface{}, *StratumError) {
+				if request.Method != "mining.authorize" {
+					return nil, StratumErrNeedAuthorize
+				}
+
+				if len(request.Params) < 1 {
+					return nil, StratumErrTooFewParams
+				}
+
+				fullWorkerName, ok := request.Params[0].(string)
+
+				if !ok {
+					return nil, StratumErrWorkerNameMustBeString
+				}
+
+				// 矿工名
+				session.fullWorkerName = strings.TrimSpace(fullWorkerName)
+
+				if strings.Contains(session.fullWorkerName, ".") {
+					// 截取“.”之前的做为子账户名，“.”及之后的做矿机名
+					pos := strings.Index(session.fullWorkerName, ".")
+					session.subaccountName = session.fullWorkerName[:pos]
+					session.minerNameWithDot = session.fullWorkerName[pos:]
+				} else {
+					session.subaccountName = session.fullWorkerName
+					session.minerNameWithDot = ""
+				}
+
+				if len(session.subaccountName) < 1 {
+					return nil, StratumErrWorkerNameStartWrong
+				}
+
+				// 保存原始请求以便转发给Stratum服务器
+				session.stratumAuthorizeRequest = request
+
+				// 生成响应
+				result := true
+				return result, nil
+			}()
+
+			response.ID = request.ID
+			response.Result = result
+			response.Error = stratumErr.ToJSONRPCArray()
+
+			_, err = session.writeJSONResponseToClient(response)
+
+			if err != nil {
+				e <- errors.New("Write JSON Response Failed: " + err.Error())
+				break
+			}
+
+			// 如果订阅成功则跳出循环
+			if stratumErr == nil {
+				// 发送一个空错误表示成功
+				e <- nil
 				break
 			}
 		}
@@ -379,19 +400,19 @@ func (session *StratumSession) stratumFindWorkerName() bool {
 	case err := <-e:
 		if err != nil {
 			glog.Warning(err)
-			return false
+			return err
 		}
 
 		glog.V(2).Info("FindWorkerName Success: ", session.fullWorkerName)
-		return true
+		return nil
 
 	case <-time.After(findWorkerNameTimeoutSeconds * time.Second):
 		glog.Warning("FindWorkerName Timeout")
-		return false
+		return errors.New("FindWorkerName Timeout")
 	}
 }
 
-func (session *StratumSession) findMiningCoin() bool {
+func (session *StratumSession) findMiningCoin() error {
 	// 从zookeeper读取用户想挖的币种
 
 	session.zkWatchPath = zookeeperSwitcherWatchDir + session.subaccountName
@@ -403,16 +424,16 @@ func (session *StratumSession) findMiningCoin() bool {
 		response := JSONRPCResponse{nil, nil, JSONRPCArray{201, "Cannot Found Minning Coin Type", nil}}
 		session.writeJSONResponseToClient(&response)
 
-		return false
+		return err
 	}
 
 	session.miningCoin = string(data)
 	session.zkWatchEvent = event
 
-	return true
+	return nil
 }
 
-func (session *StratumSession) connectStratumServer() bool {
+func (session *StratumSession) connectStratumServer() error {
 	// 寻找币种对应的服务器
 	serverInfo, ok := stratumServerInfoMap[session.miningCoin]
 
@@ -420,9 +441,9 @@ func (session *StratumSession) connectStratumServer() bool {
 	if !ok {
 		glog.Error("Stratum Server Not Found: ", session.miningCoin)
 
-		response := JSONRPCResponse{nil, nil, JSONRPCArray{301, "Stratum Server Not Found: " + session.miningCoin, nil}}
+		response := JSONRPCResponse{nil, nil, StratumErrStratumServerNotFound.ToJSONRPCArray()}
 		session.writeJSONResponseToClient(&response)
-		return false
+		return StratumErrStratumServerNotFound
 	}
 
 	// 连接服务器
@@ -431,9 +452,9 @@ func (session *StratumSession) connectStratumServer() bool {
 	if err != nil {
 		glog.Error("Connect Stratum Server Failed: ", session.miningCoin, "; ", serverInfo.URL, "; ", err)
 
-		response := JSONRPCResponse{nil, nil, JSONRPCArray{301, "Connect Stratum Server Failed: " + session.miningCoin, nil}}
+		response := JSONRPCResponse{nil, nil, StratumErrConnectStratumServerFailed.ToJSONRPCArray()}
 		session.writeJSONResponseToClient(&response)
-		return false
+		return StratumErrConnectStratumServerFailed
 	}
 
 	glog.V(3).Info("Connect Stratum Server Success: ", session.miningCoin, "; ", serverInfo.URL)
@@ -461,14 +482,14 @@ func (session *StratumSession) connectStratumServer() bool {
 
 	if err != nil {
 		glog.Warning("Write Subscribe Request Failed: ", err)
-		return false
+		return err
 	}
 
 	responseJSON, err := session.readLineFromServerWithTimeout(readSubscribeResponseTimeoutSeconds * time.Second)
 
 	if err != nil {
 		glog.Warning("Read Subscribe Response Failed: ", err)
-		return false
+		return err
 	}
 
 	// 检查服务器返回的 sessionID 与当前保存的是否一致
@@ -476,32 +497,32 @@ func (session *StratumSession) connectStratumServer() bool {
 
 	if err != nil {
 		glog.Warning("Parse Subscribe Response Failed: ", err)
-		return false
+		return err
 	}
 
 	result, ok := response.Result.([]interface{})
 
 	if !ok {
-		glog.Warning("Parse Subscribe Response Failed")
-		return false
+		glog.Warning("Parse Subscribe Response Failed: result is not an array")
+		return ErrParseSubscribeResponseFailed
 	}
 
 	if len(result) < 2 {
-		glog.Warning("Field too Few of Subscribe Response Result: ", err)
-		return false
+		glog.Warning("Field too Few of Subscribe Response Result: ", result)
+		return ErrParseSubscribeResponseFailed
 	}
 
 	sessionID, ok := result[1].(string)
 
 	if !ok {
-		glog.Warning("Parse Subscribe Response Failed")
-		return false
+		glog.Warning("Parse Subscribe Response Failed: result[1] is not a string")
+		return ErrParseSubscribeResponseFailed
 	}
 
 	// 服务器返回的 sessionID 与当前保存的不一致，此时挖到的所有share都会是无效的，断开连接
 	if sessionID != session.sessionIDString {
 		glog.Warning("Session ID Inconformity:  ", sessionID, " != ", session.sessionIDString)
-		return false
+		return ErrSessionIDInconformity
 	}
 
 	glog.V(3).Info("Subscribe Success: ", string(responseJSON))
@@ -509,7 +530,7 @@ func (session *StratumSession) connectStratumServer() bool {
 	// 认证响应的JSON数据
 	var authorizeResponseJSON []byte
 	// 添加了币种后缀的矿机名
-	fullWorkerNameWithCoinPostfix := session.subaccountName + "_" + session.miningCoin + "." + session.minerName
+	fullWorkerNameWithCoinPostfix := session.subaccountName + "_" + session.miningCoin + session.minerNameWithDot
 
 	// 认证状态
 	var authSuccess = false
@@ -550,7 +571,7 @@ func (session *StratumSession) connectStratumServer() bool {
 
 		if err != nil {
 			glog.Warning("Write Authorize Response to Client Failed: ", err)
-			return false
+			return err
 		}
 
 		session.clientWriter.Flush()
@@ -560,11 +581,11 @@ func (session *StratumSession) connectStratumServer() bool {
 
 	if !authSuccess {
 		glog.Warning("Authorize Failed: ", authWorkerName, "; ", session.miningCoin)
-		return false
+		return ErrAuthorizeFailed
 	}
 
 	glog.Info("Authorize Success: ", authWorkerName, "; ", session.miningCoin)
-	return true
+	return nil
 }
 
 // miningAuthorize 矿机认证
@@ -682,11 +703,6 @@ func (session *StratumSession) proxyStratum() {
 
 		glog.V(3).Info("CoinWatcher: exited")
 	}()
-}
-
-func (session *StratumSession) runProxyAgent() {
-	glog.Error("proxy of BTC Agent Protocol is not implement now!")
-	session.Stop()
 }
 
 func peekWithTimeout(reader *bufio.Reader, len int, timeout time.Duration) ([]byte, error) {
