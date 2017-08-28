@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -14,6 +15,9 @@ import (
 	"github.com/golang/glog"
 	"github.com/samuel/go-zookeeper/zk"
 )
+
+// BTCAgent的ex-message的magic number
+const btcAgentExMessageMagicNumber = 0x7F
 
 // 协议检测超时时间
 const protocolDetectTimeoutSeconds = 15
@@ -45,8 +49,8 @@ const (
 )
 
 var (
-	// ErrReadLineTimeout 从bufio.Reader中读取一行超时
-	ErrReadLineTimeout = errors.New("Readline Timeout")
+	// ErrBufIOReadTimeout 从bufio.Reader中读取数据时超时
+	ErrBufIOReadTimeout = errors.New("BufIO Read Timeout")
 	// ErrSessionIDFull SessionID已满（所有可用值均已分配）
 	ErrSessionIDFull = errors.New("Session ID is Full")
 )
@@ -225,18 +229,19 @@ func (session *StratumSession) protocolDetect() (ProtocolType, bool) {
 		return ProtocolUnknown, false
 	}
 
-	if magicNumber[0] == 0x7F {
-		glog.V(3).Info("Found BTC Agent Protocol")
-		return ProtocolBTCAgent, true
-
-	} else if magicNumber[0] == '{' {
-		glog.V(3).Info("Found Stratum Protocol")
-		return ProtocolStratum, true
-
-	} else {
+	// 从客户端收到的第一个报文一定是Stratum协议的JSON字符串。
+	// BTC Agent在subscribe和authorize阶段发送的是标准Stratum协议JSON字符串，
+	// 只有在authorize完成之后才可能出现ex-message。
+	//
+	// 这也就是说，一方面，BTC Agent可以和普通矿机共享连接和认证流程，
+	// 另一方面，我们无法在最开始就检测出客户端是BTC Agent，我们要随时做好收到ex-message的准备。
+	if magicNumber[0] != '{' {
 		glog.Warning("Unknown Protocol")
 		return ProtocolUnknown, true
 	}
+
+	glog.V(3).Info("Found Stratum Protocol")
+	return ProtocolStratum, true
 }
 
 func (session *StratumSession) runProxyStratum() {
@@ -604,9 +609,74 @@ func (session *StratumSession) proxyStratum() {
 	// 从服务器到客户端
 	go func() {
 		for running {
-			data, err := session.readLineFromServerWithTimeout(receiveMessageTimeoutSeconds * time.Second)
+			data, err := session.peekFromServerWithTimeout(1, receiveMessageTimeoutSeconds*time.Second)
 
-			if err == ErrReadLineTimeout {
+			func() {
+				if err != nil {
+					return
+				}
+
+				if data[0] == '{' {
+					// stratum message
+					data, err = session.readLineFromServerWithTimeout(receiveMessageTimeoutSeconds * time.Second)
+
+				} else if data[0] == btcAgentExMessageMagicNumber {
+					//
+					// BTCAgent ex-message
+					// <https://github.com/btccom/btcpool/blob/master/docs/AGENT.md>
+					//
+					// message struct:
+					// | magic_number(1) | cmd(1) | len (2) | data(len-4) |
+					//
+					// The header size (4 bytes) is included in len!
+					// uint16_t and uint32_t are using litten-endian.
+					//
+
+					// data 和 err 是在函数外面定义的
+					data, err = session.peekFromServerWithTimeout(4, receiveMessageTimeoutSeconds*time.Second)
+
+					if err != nil {
+						return
+					}
+
+					var msgLen = int(uint16(data[2]) | (uint16(data[3]) << 8)) //litten-endian
+
+					if msgLen < 4 {
+						err = errors.New("ex-message len <4: " + strconv.Itoa(msgLen))
+						return
+					}
+
+					data, err = session.peekFromServerWithTimeout(msgLen, receiveMessageTimeoutSeconds*time.Second)
+
+					if err != nil {
+						return
+					}
+
+					// 消息大小与其长度数值不相等
+					if len(data) != msgLen {
+						err = errors.New("ex-message len error, read " + strconv.Itoa(len(data)) + ", expect " + strconv.Itoa(msgLen))
+						return
+					}
+
+					// 抛弃已经Peek的数据
+					_, err = session.serverReader.Discard(msgLen)
+
+					if err != nil {
+						return
+					}
+
+					// 成功，可以写数据给客户端了
+					glog.Info("read ex-message from server, len: " + strconv.Itoa(msgLen))
+					return
+
+				} else {
+					// unknown message
+					//err = errors.New("Unknown message magic number: " + strconv.Itoa(int(data[0])))
+					return
+				}
+			}()
+
+			if err == ErrBufIOReadTimeout {
 				continue
 			}
 
@@ -640,9 +710,75 @@ func (session *StratumSession) proxyStratum() {
 	// 从客户端到服务器
 	go func() {
 		for running {
-			data, err := session.readLineFromClientWithTimeout(receiveMessageTimeoutSeconds * time.Second)
+			data, err := session.peekFromClientWithTimeout(1, receiveMessageTimeoutSeconds*time.Second)
 
-			if err == ErrReadLineTimeout {
+			func() {
+				if err != nil {
+					return
+				}
+
+				if data[0] == '{' {
+					// stratum message
+					data, err = session.readLineFromClientWithTimeout(receiveMessageTimeoutSeconds * time.Second)
+
+				} else if data[0] == btcAgentExMessageMagicNumber {
+					//
+					// BTCAgent ex-message
+					// <https://github.com/btccom/btcpool/blob/master/docs/AGENT.md>
+					//
+					// message struct:
+					// | magic_number(1) | cmd(1) | len (2) | data(len-4) |
+					//
+					// The header size (4 bytes) is included in len!
+					// uint16_t and uint32_t are using litten-endian.
+					//
+
+					// data 和 err 是在函数外面定义的
+					data, err = session.peekFromClientWithTimeout(4, receiveMessageTimeoutSeconds*time.Second)
+
+					if err != nil {
+						return
+					}
+
+					var msgLen = int(uint16(data[2]) | (uint16(data[3]) << 8)) //litten-endian
+
+					if msgLen < 4 {
+						err = errors.New("ex-message len <4: " + strconv.Itoa(msgLen))
+						return
+					}
+
+					glog.Info("ex-message len: " + strconv.Itoa(msgLen))
+					data, err = session.peekFromClientWithTimeout(msgLen, receiveMessageTimeoutSeconds*time.Second)
+
+					if err != nil {
+						return
+					}
+
+					// 消息大小与其长度数值不相等
+					if len(data) != msgLen {
+						err = errors.New("ex-message len error, read " + strconv.Itoa(len(data)) + ", expect " + strconv.Itoa(msgLen))
+						return
+					}
+
+					// 抛弃已经Peek的数据
+					_, err = session.clientReader.Discard(msgLen)
+
+					if err != nil {
+						return
+					}
+
+					// 成功，可以写数据给服务器了
+					glog.Info("read ex-message from client, len: " + strconv.Itoa(msgLen))
+					return
+
+				} else {
+					// unknown message
+					err = errors.New("Unknown message magic number: " + strconv.Itoa(int(data[0])))
+					return
+				}
+			}()
+
+			if err == ErrBufIOReadTimeout {
 				continue
 			}
 
@@ -780,7 +916,7 @@ func peekWithTimeout(reader *bufio.Reader, len int, timeout time.Duration) ([]by
 	case err := <-e:
 		return nil, err
 	case <-time.After(timeout):
-		return nil, errors.New("Peek Timeout")
+		return nil, ErrBufIOReadTimeout
 	}
 }
 
@@ -790,6 +926,31 @@ func (session *StratumSession) peekFromClientWithTimeout(len int, timeout time.D
 
 func (session *StratumSession) peekFromServerWithTimeout(len int, timeout time.Duration) ([]byte, error) {
 	return peekWithTimeout(session.serverReader, len, timeout)
+}
+
+func readByteWithTimeout(reader *bufio.Reader, buffer []byte, timeout time.Duration) (int, error) {
+	l := make(chan int)
+	e := make(chan error)
+
+	go func() {
+		len, err := reader.Read(buffer)
+		if err != nil {
+			e <- err
+		} else {
+			l <- len
+		}
+		close(l)
+		close(e)
+	}()
+
+	select {
+	case len := <-l:
+		return len, nil
+	case err := <-e:
+		return 0, err
+	case <-time.After(timeout):
+		return 0, ErrBufIOReadTimeout
+	}
 }
 
 func readLineWithTimeout(reader *bufio.Reader, timeout time.Duration) ([]byte, error) {
@@ -813,8 +974,16 @@ func readLineWithTimeout(reader *bufio.Reader, timeout time.Duration) ([]byte, e
 	case err := <-e:
 		return nil, err
 	case <-time.After(timeout):
-		return nil, ErrReadLineTimeout
+		return nil, ErrBufIOReadTimeout
 	}
+}
+
+func (session *StratumSession) readByteFromClientWithTimeout(buffer []byte, timeout time.Duration) (int, error) {
+	return readByteWithTimeout(session.clientReader, buffer, timeout)
+}
+
+func (session *StratumSession) readByteFromServerWithTimeout(buffer []byte, timeout time.Duration) (int, error) {
+	return readByteWithTimeout(session.serverReader, buffer, timeout)
 }
 
 func (session *StratumSession) readLineFromClientWithTimeout(timeout time.Duration) ([]byte, error) {
