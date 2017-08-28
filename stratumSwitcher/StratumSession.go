@@ -409,8 +409,10 @@ func (session *StratumSession) findMiningCoin() bool {
 }
 
 func (session *StratumSession) connectStratumServer() bool {
+	// 寻找币种对应的服务器
 	serverInfo, ok := stratumServerInfoMap[session.miningCoin]
 
+	// 对应的服务器不存在
 	if !ok {
 		glog.Error("Stratum Server Not Found: ", session.miningCoin)
 
@@ -419,6 +421,7 @@ func (session *StratumSession) connectStratumServer() bool {
 		return false
 	}
 
+	// 连接服务器
 	serverConn, err := net.Dial("tcp", serverInfo.URL)
 
 	if err != nil {
@@ -491,6 +494,7 @@ func (session *StratumSession) connectStratumServer() bool {
 		return false
 	}
 
+	// 服务器返回的 sessionID 与当前保存的不一致，此时挖到的所有share都会是无效的，断开连接
 	if sessionID != session.sessionIDString {
 		glog.Warning("Session ID Inconformity:  ", sessionID, " != ", session.sessionIDString)
 		return false
@@ -498,56 +502,47 @@ func (session *StratumSession) connectStratumServer() bool {
 
 	glog.V(3).Info("Subscribe Success: ", string(responseJSON))
 
-	// 子账户名添加币种后缀
+	// 认证响应的JSON数据
+	var authorizeResponseJSON []byte
+	// 添加了币种后缀的矿机名
 	fullWorkerNameWithCoinPostfix := session.subaccountName + "_" + session.miningCoin + "." + session.minerName
-	session.stratumAuthorizeRequest.Params[0] = fullWorkerNameWithCoinPostfix
 
-	// 发送mining.authorize请求给服务器
-	_, err = session.writeJSONRequestToServer(session.stratumAuthorizeRequest)
+	// 认证状态
+	var authSuccess = false
+	// 最后一次尝试的矿机名
+	var authWorkerName string
 
-	if err != nil {
-		glog.Warning("Write Authorize Request Failed: ", err)
-		return false
-	}
+	// 在15秒内多次尝试认证
+	// 之所以要多次认证，是因为第一次创建子账户的时候，Stratum Server不能及时的收到消息。
+	// 新创建的子账户需要约10秒才能在Stratum Server可用。
+	for i := 0; i < 5; i++ {
+		// 首次认证尝试
+		authWorkerName = fullWorkerNameWithCoinPostfix
+		glog.V(3).Info("Authorize: ", authWorkerName)
+		authSuccess, authorizeResponseJSON = session.miningAuthorize(authWorkerName)
 
-	// 检查mining.authorize是否成功，若不成功，则去掉币种后缀重试。
-	// 因为用户刚开启币种切换功能时重命名了子账户，而未重启的Stratum Server不会重新拉取子账户列表，所以感知不到子账户名的变化。
-	// 所以，尝试没有币种后缀的子账户名，看是否能够认证成功。
-	responseJSON, err = session.readLineFromServerWithTimeout(readSubscribeResponseTimeoutSeconds * time.Second)
-
-	if err != nil {
-		glog.Warning("Read Subscribe Response Failed: ", err)
-		return false
-	}
-
-	response, err = NewJSONRPCResponse(responseJSON)
-
-	if err != nil {
-		glog.Warning("Parse Subscribe Response Failed: ", err)
-		return false
-	}
-
-	success, ok := response.Result.(bool)
-
-	if !ok || !success {
-		// 认证不成功，去掉币种后缀再试
-		glog.Warning("Auth failed with ", fullWorkerNameWithCoinPostfix, ", try ", session.fullWorkerName)
-
-		session.stratumAuthorizeRequest.Params[0] = session.fullWorkerName
-
-		// 发送mining.authorize请求给服务器
-		_, err = session.writeJSONRequestToServer(session.stratumAuthorizeRequest)
-
-		if err != nil {
-			glog.Warning("Write Authorize Request Failed: ", err)
-			return false
+		if authSuccess {
+			break
 		}
 
-		// 不需要再读出结果了，直接进入纯代理
+		// 认证没有成功，去掉币种后缀再试
+		// 目前来说只有开启切换功能时新创建的子账户有币种后缀，之前的子账户并没有
+		// 并且，即使重命名了子账户，没有重启过的stratum server也不会感知到子账户名已经改变
+		glog.V(3).Info("Authorize failed with ", authWorkerName, ", try ", session.fullWorkerName)
+		authWorkerName = session.fullWorkerName
+		authSuccess, authorizeResponseJSON = session.miningAuthorize(authWorkerName)
 
-	} else {
-		// 认证成功，把结果转发给矿机
-		_, err := session.clientWriter.Write(responseJSON)
+		if authSuccess {
+			break
+		}
+
+		// 还是没有成功，sleep 3秒
+		time.Sleep(time.Duration(3) * time.Second)
+	}
+
+	// 若认证响应不为空，就转发给矿机，无论认证是否成功
+	if authorizeResponseJSON != nil {
+		_, err := session.clientWriter.Write(authorizeResponseJSON)
 
 		if err != nil {
 			glog.Warning("Write Authorize Response to Client Failed: ", err)
@@ -557,7 +552,50 @@ func (session *StratumSession) connectStratumServer() bool {
 		session.clientWriter.Flush()
 	}
 
+	// 返回认证的结果（若认证失败，则认为连接失败）
+
+	if !authSuccess {
+		glog.Warning("Authorize Failed: ", authWorkerName, "; ", session.miningCoin)
+		return false
+	}
+
+	glog.Info("Authorize Success: ", authWorkerName, "; ", session.miningCoin)
 	return true
+}
+
+// miningAuthorize 矿机认证
+func (session *StratumSession) miningAuthorize(fullWorkerName string) (bool, []byte) {
+	session.stratumAuthorizeRequest.Params[0] = fullWorkerName
+
+	// 发送mining.authorize请求给服务器
+	_, err := session.writeJSONRequestToServer(session.stratumAuthorizeRequest)
+
+	if err != nil {
+		glog.Warning("Write Authorize Request Failed: ", err)
+		return false, nil
+	}
+
+	responseJSON, err := session.readLineFromServerWithTimeout(readSubscribeResponseTimeoutSeconds * time.Second)
+
+	if err != nil {
+		glog.Warning("Read Authorize Response Failed: ", err)
+		return false, nil
+	}
+
+	response, err := NewJSONRPCResponse(responseJSON)
+
+	if err != nil {
+		glog.Warning("Parse Authorize Response Failed: ", err)
+		return false, nil
+	}
+
+	success, ok := response.Result.(bool)
+
+	if !ok || !success {
+		return false, responseJSON
+	}
+
+	return true, responseJSON
 }
 
 func (session *StratumSession) proxyStratum() {
