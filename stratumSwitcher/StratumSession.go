@@ -369,11 +369,18 @@ func (session *StratumSession) stratumFindWorkerName() error {
 				// 保存原始请求以便转发给Stratum服务器
 				session.stratumAuthorizeRequest = request
 
-				// 生成响应
-				result := true
-				return result, nil
+				// 此时不发送认证成功的响应，因为事实上还没有连接服务器进行认证
+				return nil, nil
 			}()
 
+			// 如果认证成功则跳出循环
+			if stratumErr == nil {
+				// 发送一个空错误表示成功
+				e <- nil
+				break
+			}
+
+			// 否则，把错误信息发给矿机
 			response.ID = request.ID
 			response.Result = result
 			response.Error = stratumErr.ToJSONRPCArray()
@@ -382,13 +389,6 @@ func (session *StratumSession) stratumFindWorkerName() error {
 
 			if err != nil {
 				e <- errors.New("Write JSON Response Failed: " + err.Error())
-				break
-			}
-
-			// 如果订阅成功则跳出循环
-			if stratumErr == nil {
-				// 发送一个空错误表示成功
-				e <- nil
 				break
 			}
 		}

@@ -62,14 +62,4 @@ var (
 	StratumErrStratumServerNotFound = NewStratumError(301, "Stratum Server Not Found")
 	// StratumErrConnectStratumServerFailed 对应币种的Stratum Server连接失败
 	StratumErrConnectStratumServerFailed = NewStratumError(302, "Connect Stratum Server Failed")
-	/*
-		//
-		StratumErr = NewStratumError()
-		//
-		StratumErr = NewStratumError()
-		//
-		StratumErr = NewStratumError()
-		//
-		StratumErr = NewStratumError()
-	*/
 )
