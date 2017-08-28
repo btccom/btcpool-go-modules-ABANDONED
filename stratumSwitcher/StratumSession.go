@@ -6,7 +6,6 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"errors"
-	"io"
 	"net"
 	"strings"
 	"sync"
@@ -604,22 +603,17 @@ func (session *StratumSession) miningAuthorize(fullWorkerName string) (bool, []b
 }
 
 func (session *StratumSession) proxyStratum() {
-	// 关闭bufio.Reader/Writer
-	session.clientReader = nil
-	session.clientWriter = nil
-	session.serverReader = nil
-	session.serverWriter = nil
 
 	// 从服务器到客户端
 	go func() {
-		io.Copy(session.serverConn, session.clientConn)
+		session.clientWriter.ReadFrom(session.serverReader)
 		session.Stop()
 		glog.V(3).Info("DownStream: exited")
 	}()
 
 	// 从客户端到服务器
 	go func() {
-		io.Copy(session.clientConn, session.serverConn)
+		session.serverWriter.ReadFrom(session.clientReader)
 		session.Stop()
 		glog.V(3).Info("UpStream: exited")
 	}()
