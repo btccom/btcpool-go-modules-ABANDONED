@@ -32,8 +32,11 @@ var (
 	APIErrCoinIsInexistent = NewAPIError(104, "coin is inexistent")
 	// APIErrReadRecordFailed 读取记录失败
 	APIErrReadRecordFailed = NewAPIError(105, "read record failed")
-	// APIErrCoinNoChange 币种未改变（该错误不再出现，允许切换到相同币种。这样一来，如果stratumSwitcher错过了前一个切换消息，可以再收到一次切换消息以完成切换）
-	APIErrCoinNoChange = NewAPIError(106, "coin no change")
+
+	// APIErrCoinNoChange 币种未改变
+	//（该错误不再出现，允许切换到相同币种。这样一来，如果stratumSwitcher错过了前一个切换消息，可以再收到一次切换消息以完成切换）
+	//APIErrCoinNoChange = NewAPIError(106, "coin no change")
+
 	// APIErrWriteRecordFailed 写入记录失败
 	APIErrWriteRecordFailed = NewAPIError(107, "write record failed")
 )
