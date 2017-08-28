@@ -604,26 +604,24 @@ func (session *StratumSession) miningAuthorize(fullWorkerName string) (bool, []b
 }
 
 func (session *StratumSession) proxyStratum() {
-	var running = true
+	// 关闭bufio.Reader/Writer
+	session.clientReader = nil
+	session.clientWriter = nil
+	session.serverReader = nil
+	session.serverWriter = nil
 
 	// 从服务器到客户端
 	go func() {
-		copiedLen, err := io.Copy(session.serverConn, session.clientConn)
-		glog.Info(copiedLen, "; ", err)
-
-		if running {
-			session.Stop()
-		}
+		io.Copy(session.serverConn, session.clientConn)
+		session.Stop()
+		glog.V(3).Info("DownStream: exited")
 	}()
 
 	// 从客户端到服务器
 	go func() {
-		copiedLen, err := io.Copy(session.clientConn, session.serverConn)
-		glog.Info(copiedLen, "; ", err)
-
-		if running {
-			session.Stop()
-		}
+		io.Copy(session.clientConn, session.serverConn)
+		session.Stop()
+		glog.V(3).Info("UpStream: exited")
 	}()
 
 	// 监控来自zookeeper的切换指令并进行Stratum切换
@@ -667,6 +665,7 @@ func (session *StratumSession) proxyStratum() {
 
 			// 若币种未改变，则继续监控
 			if newMiningCoin == session.miningCoin {
+				glog.V(3).Info("Mining Coin Not Changed: ", session.fullWorkerName, ": ", session.miningCoin, " -> ", newMiningCoin)
 				continue
 			}
 
@@ -677,29 +676,13 @@ func (session *StratumSession) proxyStratum() {
 				continue
 			}
 
-			// 开始切换币种
+			// 币种已改变
 			glog.V(2).Info("Mining Coin Changed: ", session.fullWorkerName, ": ", session.miningCoin, " -> ", newMiningCoin)
-			session.miningCoin = newMiningCoin
 
-			// 设置运行标志
-			running = false
-
-			// 断开旧连接
-			session.serverConn.Close()
-
-			// 建立新连接
-			ok := session.connectStratumServer()
-
-			if !ok {
-				session.Stop()
-				break
-			}
-
-			// 转入代理模式
-			session.proxyStratum()
-
-			// 退出
-			glog.V(3).Info("CoinWatcher: exited by switch coin")
+			// 因为BTCAgent会话是有状态的（一个连接里包含多个AgentSessionID，对应多台矿机），
+			// 因此没有办法安全的无缝切换BTCAgent会话。
+			// 所以，采用断开连接的方法反而更保险。
+			session.Stop()
 			break
 		}
 
