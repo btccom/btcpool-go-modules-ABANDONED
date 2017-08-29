@@ -56,6 +56,9 @@ type StratumSession struct {
 	clientReader *bufio.Reader
 	clientWriter *bufio.Writer
 
+	// 客户端IP地址及端口
+	clientIPPort string
+
 	serverConn   net.Conn
 	serverReader *bufio.Reader
 	serverWriter *bufio.Writer
@@ -128,6 +131,8 @@ func NewStratumSession(clientConn net.Conn) (*StratumSession, error) {
 	session.clientReader = bufio.NewReader(clientConn)
 	session.clientWriter = bufio.NewWriter(clientConn)
 
+	session.clientIPPort = clientConn.RemoteAddr().String()
+
 	// 产生 sessionID （Extranonce1）
 	sessionID, success := sessionIDManager.AllocSessionID()
 
@@ -142,7 +147,7 @@ func NewStratumSession(clientConn net.Conn) (*StratumSession, error) {
 	binary.Write(bytesBuffer, binary.BigEndian, sessionID)
 	session.sessionIDString = hex.EncodeToString(bytesBuffer.Bytes())
 
-	glog.V(3).Info("Session ID: ", session.sessionIDString)
+	glog.V(3).Info("IP: ", session.clientIPPort, ", Session ID: ", session.sessionIDString)
 
 	return session, nil
 }
@@ -210,7 +215,7 @@ func (session *StratumSession) Stop() {
 	// 释放sessionID
 	sessionIDManager.FreeSessionID(session.sessionID)
 
-	glog.V(2).Info("Session Stoped: ", session.fullWorkerName)
+	glog.V(2).Info("Session Stoped: ", session.clientIPPort, "; ", session.fullWorkerName)
 }
 
 func (session *StratumSession) protocolDetect() ProtocolType {
@@ -474,7 +479,10 @@ func (session *StratumSession) connectStratumServer() error {
 	}
 	glog.V(3).Info("UserAgent: ", userAgent)
 
-	session.stratumSubscribeRequest.SetParam(userAgent, session.sessionIDString)
+	// 为了保证Web侧“最近提交IP”显示正确，将矿机的IP做为第三个参数传递给Stratum Server
+	clientIP := session.clientIPPort[:strings.LastIndex(session.clientIPPort, ":")]
+	clientIPLong := IP2Long(clientIP)
+	session.stratumSubscribeRequest.SetParam(userAgent, session.sessionIDString, clientIPLong)
 
 	// 发送mining.subscribe请求给服务器
 	// sessionID已包含在其中，一并发送给服务器
@@ -584,7 +592,7 @@ func (session *StratumSession) connectStratumServer() error {
 		return ErrAuthorizeFailed
 	}
 
-	glog.Info("Authorize Success: ", authWorkerName, "; ", session.miningCoin)
+	glog.Info("Authorize Success: ", session.clientIPPort, "; ", session.miningCoin, "; ", authWorkerName)
 	return nil
 }
 
