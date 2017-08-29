@@ -1,0 +1,8 @@
+{
+    "UserListAPI": {
+        "btc": "https://sz.pool.btc.com/get_user_id_list",
+        "bcc": "https://sz-bccpool.btc.com/get_user_id_list"
+    },
+    "ZKBroker": [ "127.0.0.1:2181" ],
+    "ZKSwitcherWatchDir": "/stratumSwitcher/btcbcc/"
+}

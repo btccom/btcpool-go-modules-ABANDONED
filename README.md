@@ -5,3 +5,7 @@
 # [Switcher API Server](switcherAPIServer/)
 
 提供触发 Stratum 切换的API
+
+# [Init User Coin](initUserCoin/)
+
+初始化zookeeper里的用户币种记录
