@@ -80,16 +80,22 @@ func InitUserCoin(coin string, url string) {
 
 			// 遍历用户币种列表
 			for puname, puid := range userIDMapResponse.Data {
+				if strings.Contains(puname, "_") {
+					glog.Info("skip puname with coin postfix: ", puname, " (", puid, "): ", coin)
+					continue
+				}
+
 				err := setMiningCoin(puname, coin)
 
 				if err != nil {
 					glog.Info(err.ErrMsg, ": ", puname, ": ", coin)
-				} else {
-					glog.Info("success: ", puname, " (", puid, "): ", coin)
+					continue
+				}
 
-					if puid > lastPUID {
-						lastPUID = puid
-					}
+				glog.Info("success: ", puname, " (", puid, "): ", coin)
+
+				if puid > lastPUID {
+					lastPUID = puid
 				}
 			}
 
