@@ -89,10 +89,13 @@ func InitUserCoin(coin string, url string) {
 
 				if err != nil {
 					glog.Info(err.ErrMsg, ": ", puname, ": ", coin)
-					continue
-				}
 
-				glog.Info("success: ", puname, " (", puid, "): ", coin)
+					if err != APIErrRecordExists {
+						continue
+					}
+				} else {
+					glog.Info("success: ", puname, " (", puid, "): ", coin)
+				}
 
 				if puid > lastPUID {
 					lastPUID = puid
@@ -152,24 +155,19 @@ func setMiningCoin(puname string, coin string) (apiErr *APIError) {
 	}
 
 	if exists {
-		// 写入新值
-		_, err = zookeeperConn.Set(zkPath, []byte(coin), -1)
+		// 已经存在，跳过
+		apiErr = APIErrRecordExists
+		return
 
-		if err != nil {
-			glog.Error("zk.Set(", zkPath, ",", coin, ") Failed: ", err)
-			apiErr = APIErrWriteRecordFailed
-			return
-		}
+	}
 
-	} else {
-		// 不存在，直接创建
-		_, err = zookeeperConn.Create(zkPath, []byte(coin), 0, zk.WorldACL(zk.PermAll))
+	// 不存在，创建
+	_, err = zookeeperConn.Create(zkPath, []byte(coin), 0, zk.WorldACL(zk.PermAll))
 
-		if err != nil {
-			glog.Error("zk.Create(", zkPath, ",", coin, ") Failed: ", err)
-			apiErr = APIErrWriteRecordFailed
-			return
-		}
+	if err != nil {
+		glog.Error("zk.Create(", zkPath, ",", coin, ") Failed: ", err)
+		apiErr = APIErrWriteRecordFailed
+		return
 	}
 
 	apiErr = nil

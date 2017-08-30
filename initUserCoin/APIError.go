@@ -39,4 +39,7 @@ var (
 
 	// APIErrWriteRecordFailed 写入记录失败
 	APIErrWriteRecordFailed = NewAPIError(107, "write record failed")
+
+	// APIErrRecordExists 记录已存在
+	APIErrRecordExists = NewAPIError(108, "record exists, skip")
 )
