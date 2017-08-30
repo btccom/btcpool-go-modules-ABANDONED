@@ -13,17 +13,39 @@ export GOPATH=/work/golang
 go get github.com/btccom/stratumSwitcher/initUserCoin
 ```
 
-创建配置文件
+编辑配置文件
 
 ```bash
 mkdir /work/golang/initUserCoin
+mkdir /work/golang/initUserCoin/log
 cp /work/golang/src/github.com/btccom/stratumSwitcher/initUserCoin/config.default.json /work/golang/initUserCoin/config.json
 vim /work/golang/initUserCoin/config.json
+```
+
+创建supervisor条目
+
+```bash
+vim /etc/supervisor/conf.d/switcher-inituser.conf
+```
+
+```conf
+[program:switcher-inituser]
+directory=/work/golang/initUserCoin
+command=/work/golang/bin/initUserCoin -config=/work/golang/initUserCoin/config.json -log_dir=/work/golang/initUserCoin/log -v 2
+autostart=true
+autorestart=true
+startsecs=6
+startretries=20
+
+redirect_stderr=true
+stdout_logfile_backups=5
+stdout_logfile=/work/golang/initUserCoin/log/stdout.log
 ```
 
 运行
 
 ```bash
-cd /work/golang/initUserCoin
-/work/golang/bin/initUserCoin --logtostderr -v 2
+supervisorctl reread
+supervisorctl update
+supervisorctl status
 ```
