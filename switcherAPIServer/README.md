@@ -32,7 +32,7 @@ http://10.0.0.12:8082/switch?puname=aaaa&coin=bcc
 
 ```bash
 mkdir -p /work/golang
-apt install golang
+apt install -y golang
 export GOPATH=/work/golang
 go get github.com/btccom/stratumSwitcher/switcherAPIServer
 ```

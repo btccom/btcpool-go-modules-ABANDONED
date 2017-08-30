@@ -8,7 +8,7 @@
 
 ```bash
 mkdir -p /work/golang
-apt install golang
+apt install -y golang
 export GOPATH=/work/golang
 go get github.com/btccom/stratumSwitcher/initUserCoin
 ```
