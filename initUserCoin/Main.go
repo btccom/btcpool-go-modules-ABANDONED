@@ -18,6 +18,8 @@ const zookeeperConnTimeout = 5
 type ConfigData struct {
 	// UserListAPI 币种对应的用户列表，形如{"btc":"url", "bcc":"url"}
 	UserListAPI map[string]string
+	// IntervalSeconds 每次拉取的间隔时间
+	IntervalSeconds uint
 
 	// Zookeeper集群的IP:端口列表
 	ZKBroker []string
