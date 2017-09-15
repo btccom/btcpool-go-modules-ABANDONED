@@ -5,17 +5,21 @@ import (
 	"flag"
 	"io/ioutil"
 	"net"
+	"net/http"
+	_ "net/http/pprof"
 
 	"github.com/golang/glog"
 )
 
 // ConfigData 配置数据
 type ConfigData struct {
-	ServerID           uint8
-	ListenAddr         string
-	StratumServerMap   StratumServerInfoMap
-	ZKBroker           []string
-	ZKSwitcherWatchDir string // 以斜杠结尾
+	ServerID            uint8
+	ListenAddr          string
+	StratumServerMap    StratumServerInfoMap
+	ZKBroker            []string
+	ZKSwitcherWatchDir  string // 以斜杠结尾
+	EnableHTTPDebug     bool
+	HTTPDebugListenAddr string
 }
 
 func main() {
@@ -37,6 +41,14 @@ func main() {
 	if err != nil {
 		glog.Fatal("parse config failed: ", err)
 		return
+	}
+
+	// 开启HTTP Debug
+	if configData.EnableHTTPDebug {
+		go func() {
+			glog.Info("HTTP debug enabled: ", configData.HTTPDebugListenAddr)
+			http.ListenAndServe(configData.HTTPDebugListenAddr, nil)
+		}()
 	}
 
 	// 若zookeeper路径不以“/”结尾，则添加

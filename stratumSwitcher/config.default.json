@@ -6,5 +6,7 @@
         "bcc": { "URL": "127.0.0.1:4444" }
     },
     "ZKBroker": [ "127.0.0.1:2181" ],
-    "ZKSwitcherWatchDir": "/stratumSwitcher/btcbcc/"
+    "ZKSwitcherWatchDir": "/stratumSwitcher/btcbcc/",
+    "EnableHTTPDebug": false,
+    "HTTPDebugListenAddr": "127.0.0.1:6060"
 }
