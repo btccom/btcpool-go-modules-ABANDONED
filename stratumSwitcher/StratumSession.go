@@ -270,7 +270,7 @@ func (session *StratumSession) runProxyStratum() {
 }
 
 func (session *StratumSession) stratumFindWorkerName() error {
-	e := make(chan error)
+	e := make(chan error, 1)
 
 	go func() {
 		response := new(JSONRPCResponse)
@@ -714,8 +714,8 @@ func (session *StratumSession) proxyStratum() {
 }
 
 func peekWithTimeout(reader *bufio.Reader, len int, timeout time.Duration) ([]byte, error) {
-	d := make(chan []byte)
-	e := make(chan error)
+	d := make(chan []byte, 1)
+	e := make(chan error, 1)
 
 	go func() {
 		data, err := reader.Peek(len)
@@ -747,8 +747,8 @@ func (session *StratumSession) peekFromServerWithTimeout(len int, timeout time.D
 }
 
 func readByteWithTimeout(reader *bufio.Reader, buffer []byte, timeout time.Duration) (int, error) {
-	l := make(chan int)
-	e := make(chan error)
+	l := make(chan int, 1)
+	e := make(chan error, 1)
 
 	go func() {
 		len, err := reader.Read(buffer)
@@ -772,8 +772,8 @@ func readByteWithTimeout(reader *bufio.Reader, buffer []byte, timeout time.Durat
 }
 
 func readLineWithTimeout(reader *bufio.Reader, timeout time.Duration) ([]byte, error) {
-	d := make(chan []byte)
-	e := make(chan error)
+	d := make(chan []byte, 1)
+	e := make(chan error, 1)
 
 	go func() {
 		data, err := reader.ReadBytes('\n')
