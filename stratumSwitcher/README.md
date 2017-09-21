@@ -49,3 +49,11 @@ supervisorctl reread
 supervisorctl update
 supervisorctl status
 ```
+
+#### 更新
+
+```bash
+export GOPATH=/work/golang
+go get -u github.com/btccom/stratumSwitcher/stratumSwitcher
+diff /work/golang/src/github.com/btccom/stratumSwitcher/stratumSwitcher/config.default.json /work/golang/stratumSwitcher/config.json
+```
