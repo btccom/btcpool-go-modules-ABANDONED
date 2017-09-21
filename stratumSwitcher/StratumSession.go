@@ -592,7 +592,7 @@ func (session *StratumSession) connectStratumServer() error {
 		return ErrAuthorizeFailed
 	}
 
-	glog.Info("Authorize Success: ", session.clientIPPort, "; ", session.miningCoin, "; ", authWorkerName)
+	glog.Info("Authorize Success: ", session.clientIPPort, "; ", session.miningCoin, "; ", authWorkerName, "; ", userAgent)
 	return nil
 }
 
