@@ -714,25 +714,19 @@ func (session *StratumSession) proxyStratum() {
 }
 
 func peekWithTimeout(reader *bufio.Reader, len int, timeout time.Duration) ([]byte, error) {
-	d := make(chan []byte, 1)
 	e := make(chan error, 1)
+	var buffer []byte
 
 	go func() {
 		data, err := reader.Peek(len)
-		if err != nil {
-			e <- err
-		} else {
-			d <- data
-		}
-		close(d)
+		buffer = data
+		e <- err
 		close(e)
 	}()
 
 	select {
-	case data := <-d:
-		return data, nil
 	case err := <-e:
-		return nil, err
+		return buffer, err
 	case <-time.After(timeout):
 		return nil, ErrBufIOReadTimeout
 	}
@@ -747,50 +741,38 @@ func (session *StratumSession) peekFromServerWithTimeout(len int, timeout time.D
 }
 
 func readByteWithTimeout(reader *bufio.Reader, buffer []byte, timeout time.Duration) (int, error) {
-	l := make(chan int, 1)
 	e := make(chan error, 1)
+	var length int
 
 	go func() {
 		len, err := reader.Read(buffer)
-		if err != nil {
-			e <- err
-		} else {
-			l <- len
-		}
-		close(l)
+		length = len
+		e <- err
 		close(e)
 	}()
 
 	select {
-	case len := <-l:
-		return len, nil
 	case err := <-e:
-		return 0, err
+		return length, err
 	case <-time.After(timeout):
 		return 0, ErrBufIOReadTimeout
 	}
 }
 
 func readLineWithTimeout(reader *bufio.Reader, timeout time.Duration) ([]byte, error) {
-	d := make(chan []byte, 1)
 	e := make(chan error, 1)
+	var buffer []byte
 
 	go func() {
 		data, err := reader.ReadBytes('\n')
-		if err != nil {
-			e <- err
-		} else {
-			d <- data
-		}
-		close(d)
+		buffer = data
+		e <- err
 		close(e)
 	}()
 
 	select {
-	case data := <-d:
-		return data, nil
 	case err := <-e:
-		return nil, err
+		return buffer, err
 	case <-time.After(timeout):
 		return nil, ErrBufIOReadTimeout
 	}
