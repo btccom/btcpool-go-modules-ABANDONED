@@ -34,7 +34,7 @@ http://10.0.0.12:8082/switch?puname=aaaa&coin=bcc
 mkdir -p /work/golang
 apt install -y golang
 export GOPATH=/work/golang
-go get github.com/btccom/stratumSwitcher/switcherAPIServer
+GIT_TERMINAL_PROMPT=1 go get github.com/btccom/stratumSwitcher/switcherAPIServer
 ```
 
 编辑配置文件
@@ -78,6 +78,6 @@ supervisorctl status
 
 ```bash
 export GOPATH=/work/golang
-go get -u github.com/btccom/stratumSwitcher/switcherAPIServer
+GIT_TERMINAL_PROMPT=1 go get -u github.com/btccom/stratumSwitcher/switcherAPIServer
 diff /work/golang/src/github.com/btccom/stratumSwitcher/switcherAPIServer/config.default.json /work/golang/switcherAPIServer/config.json
 ```

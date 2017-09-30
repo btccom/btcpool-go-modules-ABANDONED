@@ -10,7 +10,7 @@
 mkdir -p /work/golang
 apt install -y golang
 export GOPATH=/work/golang
-go get github.com/btccom/stratumSwitcher/stratumSwitcher
+GIT_TERMINAL_PROMPT=1 go get github.com/btccom/stratumSwitcher/stratumSwitcher
 ```
 
 编辑配置文件
@@ -54,6 +54,6 @@ supervisorctl status
 
 ```bash
 export GOPATH=/work/golang
-go get -u github.com/btccom/stratumSwitcher/stratumSwitcher
+GIT_TERMINAL_PROMPT=1 go get -u github.com/btccom/stratumSwitcher/stratumSwitcher
 diff /work/golang/src/github.com/btccom/stratumSwitcher/stratumSwitcher/config.default.json /work/golang/stratumSwitcher/config.json
 ```
