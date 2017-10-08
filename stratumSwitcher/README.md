@@ -42,6 +42,12 @@ stdout_logfile_backups=5
 stdout_logfile=/work/golang/stratumSwitcher/log/stdout.log
 ```
 
+更改supervisor文件描述符数量（即TCP最大连接数）
+```bash
+sed -i "s/\\[supervisord\\]/[supervisord]\nminfds=65535/" /etc/supervisor/supervisord.conf
+service supervisor restart
+```
+
 运行
 
 ```bash
