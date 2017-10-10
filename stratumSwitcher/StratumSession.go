@@ -271,6 +271,7 @@ func (session *StratumSession) runProxyStratum() {
 
 func (session *StratumSession) stratumFindWorkerName() error {
 	e := make(chan error, 1)
+	subscribeSuccess := false
 
 	go func() {
 		response := new(JSONRPCResponse)
@@ -318,12 +319,13 @@ func (session *StratumSession) stratumFindWorkerName() error {
 
 			// 如果订阅成功则跳出循环
 			if stratumErr == nil {
+				subscribeSuccess = true
 				break
 			}
 		}
 
 		// 矿机认证
-		for true {
+		for subscribeSuccess {
 			requestJSON, err := session.clientReader.ReadBytes('\n')
 
 			if err != nil {
