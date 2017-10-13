@@ -1,32 +1,110 @@
 # Switcher API Server
 
-调用该进程提供的API服务控制 StratumSwitcher 进行 Stratum 切换。该进程通过向 Zookeeper 的特定目录写入值来通知 StratumSwitcher 进行切换。
+调用该进程提供的 API 来控制 StratumSwitcher 进行币种切换。该进程通过向 Zookeeper 的特定目录写入值来通知 StratumSwitcher 进行切换。
 
+## API 文档
+
+### 单用户切换
+
+#### 认证方式
+HTTP Basic 认证
+
+#### 请求URL
+http://hostname:port/switch
+
+#### 请求方式
+GET 或 POST
+
+#### 参数
+|  名称  |  类型  |   含义   |
+| ------ | ----- | -------- |
+| puname | string | 子账户名 |
+|  coin  | string |   币种  |
+
+#### 例子
 
 子账户aaaa切换到btc：
-```
-http://10.0.0.12:8082/switch?puname=aaaa&coin=btc
+```bash
+curl -u admin:admin 'http://127.0.0.1:8082/switch?puname=aaaa&coin=btc'
 ```
 
 子账户aaaa切换到bcc：
-```
-http://10.0.0.12:8082/switch?puname=aaaa&coin=bcc
+```bash
+curl -u admin:admin 'http://10.0.0.12:8082/switch?puname=aaaa&coin=bcc'
 ```
 
 该API的返回结果：
 
 成功：
-```
+```json
 {"err_no":0, "err_msg":"", success:true}
 ```
 
 失败：
-```
+```json
 {"err_no":非0整数, "err_msg":"错误信息", success:false}
 ```
 
+### 批量切换
 
-### 构建 & 运行
+#### 认证方式
+HTTP Basic 认证
+
+#### 请求URL
+http://hostname:port/switch-multi-user
+
+#### 请求方式
+POST
+
+`Content-Type: application/json`
+
+#### 请求Body内容
+
+```json
+{
+    "usercoins": [
+        {
+            "coin": "币种1",
+            "punames": [
+                "用户1",
+                "用户2",
+                "用户3",
+                ...
+            ]
+        },
+        {
+            "coin": "币种2",
+            "punames": [
+                "用户4",
+                "用户5",
+                ...
+            ]
+        },
+        ...
+    ]
+}
+```
+
+#### 例子
+
+子账户a,b,c切换到btc，d,e切换到bcc：
+```bash
+curl -u admin:admin -d '{"usercoins":[{"coin":"btc","punames":["a","b","c"]},{"coin":"bcc","punames":["d","e"]}]}' 'http://127.0.0.1:8082/switch-multi-user'
+```
+
+该API的返回结果：
+
+成功：
+```json
+{"err_no":0, "err_msg":"", success:true}
+```
+
+失败：
+```json
+{"err_no":非0整数, "err_msg":"错误信息", success:false}
+```
+
+## 构建 & 运行
 
 构建
 
@@ -74,7 +152,7 @@ supervisorctl update
 supervisorctl status
 ```
 
-#### 更新
+## 更新
 
 ```bash
 export GOPATH=/work/golang
