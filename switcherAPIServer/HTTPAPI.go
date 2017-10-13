@@ -34,10 +34,8 @@ func runAPIServer() {
 
 // switchHandle 处理币种切换请求
 func switchHandle(w http.ResponseWriter, req *http.Request) {
-	params := req.URL.Query()
-
-	puname := params.Get("puname")
-	coin := params.Get("coin")
+	puname := req.FormValue("puname")
+	coin := req.FormValue("coin")
 
 	oldCoin, err := changeMiningCoin(puname, coin)
 
