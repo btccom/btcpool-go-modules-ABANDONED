@@ -39,4 +39,7 @@ var (
 
 	// APIErrWriteRecordFailed 写入记录失败
 	APIErrWriteRecordFailed = NewAPIError(107, "write record failed")
+
+	// APIErrUserCoinsEmpty 用户币种数组为空
+	APIErrUserCoinsEmpty = NewAPIError(108, "usercoins is empty")
 )

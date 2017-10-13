@@ -2,12 +2,24 @@ package main
 
 import (
 	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"strings"
 
 	"github.com/golang/glog"
 	"github.com/samuel/go-zookeeper/zk"
 )
+
+// SwitchUserCoins 欲切换的用户和币种
+type SwitchUserCoins struct {
+	Coin    string   `json:"coin"`
+	PUNames []string `json:"punames"`
+}
+
+// SwitchMultiUserRequest 多用户切换请求数据结构
+type SwitchMultiUserRequest struct {
+	UserCoins []SwitchUserCoins `json:"usercoins"`
+}
 
 // APIResponse API响应数据结构
 type APIResponse struct {
@@ -24,6 +36,8 @@ func runAPIServer() {
 	glog.Info("Listen HTTP ", configData.ListenAddr)
 
 	http.HandleFunc("/switch", switchHandle)
+	http.HandleFunc("/switch-multi-user", switchMultiUserHandle)
+
 	err := http.ListenAndServe(configData.ListenAddr, nil)
 
 	if err != nil {
@@ -45,7 +59,51 @@ func switchHandle(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	glog.Info("success: ", puname, ": ", oldCoin, " -> ", coin)
+	glog.Info("[single-switch] ", puname, ": ", oldCoin, " -> ", coin)
+	writeSuccess(w)
+}
+
+// switchMultiUserHandle 处理多用户币种切换请求
+func switchMultiUserHandle(w http.ResponseWriter, req *http.Request) {
+	var reqData SwitchMultiUserRequest
+
+	requestJSON, err := ioutil.ReadAll(req.Body)
+
+	if err != nil {
+		glog.Warning(err, ": ", req.RequestURI)
+		writeError(w, 500, err.Error())
+		return
+	}
+
+	err = json.Unmarshal(requestJSON, &reqData)
+
+	if err != nil {
+		glog.Info(err, ": ", req.RequestURI)
+		writeError(w, 400, err.Error())
+		return
+	}
+
+	if len(reqData.UserCoins) == 0 {
+		glog.Info(APIErrUserCoinsEmpty.ErrMsg, ": ", req.RequestURI)
+		writeError(w, APIErrUserCoinsEmpty.ErrNo, APIErrUserCoinsEmpty.ErrMsg)
+	}
+
+	for _, usercoin := range reqData.UserCoins {
+		coin := usercoin.Coin
+
+		for _, puname := range usercoin.PUNames {
+			oldCoin, err := changeMiningCoin(puname, coin)
+
+			if err != nil {
+				glog.Info(err, ": ", req.RequestURI, " {puname=", puname, ", coin=", coin, "}")
+				writeError(w, err.ErrNo, err.ErrMsg)
+				return
+			}
+
+			glog.Info("[multi-switch] ", puname, ": ", oldCoin, " -> ", coin)
+		}
+	}
+
 	writeSuccess(w)
 }
 
