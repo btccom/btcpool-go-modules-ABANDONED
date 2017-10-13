@@ -115,6 +115,7 @@ func switchMultiUserHandle(w http.ResponseWriter, req *http.Request) {
 	if len(reqData.UserCoins) == 0 {
 		glog.Info(APIErrUserCoinsEmpty.ErrMsg, ": ", req.RequestURI)
 		writeError(w, APIErrUserCoinsEmpty.ErrNo, APIErrUserCoinsEmpty.ErrMsg)
+		return
 	}
 
 	for _, usercoin := range reqData.UserCoins {

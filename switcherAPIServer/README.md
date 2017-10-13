@@ -37,12 +37,16 @@ curl -u admin:admin 'http://10.0.0.12:8082/switch?puname=aaaa&coin=bcc'
 
 成功：
 ```json
-{"err_no":0, "err_msg":"", success:true}
+{"err_no":0, "err_msg":"", "success":true}
 ```
 
 失败：
+```
+{"err_no":非0整数, "err_msg":"错误信息", "success":false}
+```
+例如
 ```json
-{"err_no":非0整数, "err_msg":"错误信息", success:false}
+{"err_no":104,"err_msg":"coin is inexistent","success":false}
 ```
 
 ### 批量切换
@@ -94,14 +98,18 @@ curl -u admin:admin -d '{"usercoins":[{"coin":"btc","punames":["a","b","c"]},{"c
 
 该API的返回结果：
 
-成功：
+所有子账户均切换成功：
 ```json
-{"err_no":0, "err_msg":"", success:true}
+{"err_no":0, "err_msg":"", "success":true}
 ```
 
-失败：
+任一子账户切换失败：
+```
+{"err_no":非0整数, "err_msg":"错误信息", "success":false}
+```
+例如
 ```json
-{"err_no":非0整数, "err_msg":"错误信息", success:false}
+{"err_no":108,"err_msg":"usercoins is empty","success":false}
 ```
 
 ## 构建 & 运行
