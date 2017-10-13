@@ -18,6 +18,10 @@ const zookeeperConnTimeout = 5
 type ConfigData struct {
 	// 是否启用 API Server
 	EnableAPIServer bool
+	// API 用户名
+	APIUser string
+	// API 密码
+	APIPassword string
 	// API Server 的监听IP:端口
 	ListenAddr string
 

@@ -1,5 +1,7 @@
 {
     "EnableAPIServer": true,
+    "APIUser": "admin",
+    "APIPassword": "admin",
     "ListenAddr": "0.0.0.0:8082",
     "AvailableCoins": [ "btc", "bcc" ],
     "ZKBroker": [ "127.0.0.1:2181" ],

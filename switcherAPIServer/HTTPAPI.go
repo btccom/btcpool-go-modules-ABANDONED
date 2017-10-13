@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
@@ -28,6 +29,9 @@ type APIResponse struct {
 	Success bool   `json:"success"`
 }
 
+// HTTPRequestHandle HTTP请求处理函数
+type HTTPRequestHandle func(http.ResponseWriter, *http.Request)
+
 // 启动 API Server
 func runAPIServer() {
 	defer waitGroup.Done()
@@ -35,14 +39,39 @@ func runAPIServer() {
 	// HTTP监听
 	glog.Info("Listen HTTP ", configData.ListenAddr)
 
-	http.HandleFunc("/switch", switchHandle)
-	http.HandleFunc("/switch-multi-user", switchMultiUserHandle)
+	http.HandleFunc("/switch", basicAuth(switchHandle))
+	http.HandleFunc("/switch-multi-user", basicAuth(switchMultiUserHandle))
 
 	err := http.ListenAndServe(configData.ListenAddr, nil)
 
 	if err != nil {
 		glog.Fatal("HTTP Listen Failed: ", err)
 		return
+	}
+}
+
+// basicAuth 执行Basic认证
+func basicAuth(f HTTPRequestHandle) HTTPRequestHandle {
+	return func(w http.ResponseWriter, r *http.Request) {
+		apiUser := []byte(configData.APIUser)
+		apiPasswd := []byte(configData.APIPassword)
+
+		user, passwd, ok := r.BasicAuth()
+
+		// 检查用户名密码是否正确
+		if ok && subtle.ConstantTimeCompare(apiUser, []byte(user)) == 1 && subtle.ConstantTimeCompare(apiPasswd, []byte(passwd)) == 1 {
+			// 执行被装饰的函数
+			f(w, r)
+			return
+		}
+
+		// 认证失败，提示 401 Unauthorized
+		// Restricted 可以改成其他的值
+		w.Header().Set("WWW-Authenticate", `Basic realm="Restricted"`)
+		// 401 状态码
+		w.WriteHeader(http.StatusUnauthorized)
+		// 401 页面
+		w.Write([]byte(`<h1>401 - Unauthorized</h1>`))
 	}
 }
 
