@@ -114,11 +114,21 @@ curl -u admin:admin -d '{"usercoins":[{"coin":"btc","punames":["a","b","c"]},{"c
 
 ## 构建 & 运行
 
+安装golang
+
+```bash
+mkdir ~/source
+cd ~/source
+wget https://storage.googleapis.com/golang/go1.9.1.linux-amd64.tar.gz
+cd /usr/local
+tar zxf ~/source/go1.9.1.linux-amd64.tar.gz
+ln -s /usr/local/go/bin/go /usr/local/bin/go
+```
+
 构建
 
 ```bash
 mkdir -p /work/golang
-apt install -y golang
 export GOPATH=/work/golang
 GIT_TERMINAL_PROMPT=1 go get github.com/btccom/stratumSwitcher/switcherAPIServer
 ```
