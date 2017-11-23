@@ -48,7 +48,7 @@ func NewSessionIDManager(serverID uint8) *SessionIDManager {
 }
 
 // isFull 判断会话ID是否已满（内部使用，不加锁）
-func (manager *SessionIDManager) isFull() bool {
+func (manager *SessionIDManager) isFullWithoutLock() bool {
 	return (manager.count >= SessionIDMask)
 }
 
@@ -57,7 +57,7 @@ func (manager *SessionIDManager) IsFull() bool {
 	defer manager.lock.Unlock()
 	manager.lock.Lock()
 
-	return manager.isFull()
+	return manager.isFullWithoutLock()
 }
 
 // AllocSessionID 为调用者分配一个会话ID
@@ -65,7 +65,7 @@ func (manager *SessionIDManager) AllocSessionID() (sessionID uint32, err error) 
 	defer manager.lock.Unlock()
 	manager.lock.Lock()
 
-	if manager.isFull() {
+	if manager.isFullWithoutLock() {
 		sessionID = SessionIDMask
 		err = ErrSessionIDFull
 		return
