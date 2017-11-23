@@ -47,6 +47,9 @@ const (
 
 // StratumSession 是一个 Stratum 会话，包含了到客户端和到服务端的连接及状态信息
 type StratumSession struct {
+	// 会话管理器
+	manager *StratumSessionManager
+
 	// 是否在运行
 	isRunning bool
 	// 改变运行状态时进行加锁
@@ -82,65 +85,19 @@ type StratumSession struct {
 	zkWatchEvent <-chan zk.Event
 }
 
-// StratumServerInfo Stratum服务器的信息
-type StratumServerInfo struct {
-	URL string
-}
-
-// StratumServerInfoMap Stratum服务器的信息散列表
-type StratumServerInfoMap map[string]StratumServerInfo
-
-// sessionIDManager 会话ID管理器实例
-var sessionIDManager *SessionIDManager
-
-// StratumServerInfoMap Stratum服务器信息列表
-var stratumServerInfoMap StratumServerInfoMap
-
-// zookeeperConn Zookeeper连接对象
-var zookeeperConn *zk.Conn
-
-// zookeeperSwitcherWatchDir 切换服务监控的zookeeper目录路径
-// 具体监控的路径为 zookeeperSwitcherWatchDir/子账户名
-var zookeeperSwitcherWatchDir string
-
-// StratumSessionGlobalInit StratumSession功能的全局初始化
-// 需要在使用StratumSession功能之前调用且仅调用一次
-func StratumSessionGlobalInit(serverID uint8, serverMap StratumServerInfoMap, zkBrokers []string, zkSwitcherWatchDir string) error {
-	sessionIDManager = NewSessionIDManager(serverID)
-	stratumServerInfoMap = serverMap
-	zookeeperSwitcherWatchDir = zkSwitcherWatchDir
-
-	// 建立到Zookeeper集群的连接
-	conn, _, err := zk.Connect(zkBrokers, time.Duration(zookeeperConnTimeout)*time.Second)
-
-	if err != nil {
-		return errors.New("Connect Zookeeper Failed: " + err.Error())
-	}
-
-	zookeeperConn = conn
-	return nil
-}
-
 // NewStratumSession 创建一个新的 Stratum 会话
-func NewStratumSession(clientConn net.Conn) (*StratumSession, error) {
-	session := new(StratumSession)
+func NewStratumSession(manager *StratumSessionManager, clientConn net.Conn, sessionID uint32) (session *StratumSession) {
+	session = new(StratumSession)
 
 	session.isRunning = false
+	session.manager = manager
+	session.sessionID = sessionID
 
 	session.clientConn = clientConn
 	session.clientReader = bufio.NewReader(clientConn)
 	session.clientWriter = bufio.NewWriter(clientConn)
 
 	session.clientIPPort = clientConn.RemoteAddr().String()
-
-	// 产生 sessionID （Extranonce1）
-	sessionID, success := sessionIDManager.AllocSessionID()
-
-	if !success {
-		return session, ErrSessionIDFull
-	}
-
-	session.sessionID = sessionID
 
 	// uint32 to string
 	bytesBuffer := bytes.NewBuffer([]byte{})
@@ -149,7 +106,7 @@ func NewStratumSession(clientConn net.Conn) (*StratumSession, error) {
 
 	glog.V(3).Info("IP: ", session.clientIPPort, ", Session ID: ", session.sessionIDString)
 
-	return session, nil
+	return
 }
 
 // IsRunning 检查会话是否在运行（线程安全）
@@ -212,8 +169,8 @@ func (session *StratumSession) Stop() {
 		session.clientConn.Close()
 	}
 
-	// 释放sessionID
-	sessionIDManager.FreeSessionID(session.sessionID)
+	session.manager.ReleaseStratumSession(session.sessionID)
+	session.manager = nil
 
 	glog.V(2).Info("Session Stoped: ", session.clientIPPort, "; ", session.fullWorkerName)
 }
@@ -422,8 +379,8 @@ func (session *StratumSession) stratumFindWorkerName() error {
 func (session *StratumSession) findMiningCoin() error {
 	// 从zookeeper读取用户想挖的币种
 
-	session.zkWatchPath = zookeeperSwitcherWatchDir + session.subaccountName
-	data, _, event, err := zookeeperConn.GetW(session.zkWatchPath)
+	session.zkWatchPath = session.manager.zookeeperSwitcherWatchDir + session.subaccountName
+	data, _, event, err := session.manager.zookeeperConn.GetW(session.zkWatchPath)
 
 	if err != nil {
 		glog.Error("FindMiningCoin Failed: " + session.zkWatchPath + "; " + err.Error())
@@ -442,7 +399,7 @@ func (session *StratumSession) findMiningCoin() error {
 
 func (session *StratumSession) connectStratumServer() error {
 	// 寻找币种对应的服务器
-	serverInfo, ok := stratumServerInfoMap[session.miningCoin]
+	serverInfo, ok := session.manager.stratumServerInfoMap[session.miningCoin]
 
 	// 对应的服务器不存在
 	if !ok {
@@ -666,14 +623,14 @@ func (session *StratumSession) proxyStratum() {
 				break
 			}
 
-			data, _, event, err := zookeeperConn.GetW(session.zkWatchPath)
+			data, _, event, err := session.manager.zookeeperConn.GetW(session.zkWatchPath)
 			session.zkWatchEvent = event
 
 			if err != nil {
 				glog.Error("Read From Zookeeper Failed: ", session.zkWatchPath, "; ", err)
 
 				// 忽略GetW的错误并尝试继续监控
-				_, _, existEvent, err := zookeeperConn.ExistsW(session.zkWatchPath)
+				_, _, existEvent, err := session.manager.zookeeperConn.ExistsW(session.zkWatchPath)
 
 				// 还是失败，放弃监控并结束会话
 				if err != nil {
@@ -695,7 +652,7 @@ func (session *StratumSession) proxyStratum() {
 			}
 
 			// 若币种对应的Stratum服务器不存在，则忽略事件并继续监控
-			_, exists := stratumServerInfoMap[newMiningCoin]
+			_, exists := session.manager.stratumServerInfoMap[newMiningCoin]
 			if !exists {
 				glog.Error("Stratum Server Not Found for New Mining Coin: ", newMiningCoin)
 				continue

@@ -40,7 +40,7 @@ func main() {
 		return
 	}
 
-	err = StratumSessionGlobalInit(configData.ServerID, configData.StratumServerMap, configData.ZKBroker, configData.ZKSwitcherWatchDir)
+	sessionManager, err := NewStratumSessionManager(configData)
 
 	if err != nil {
 		glog.Fatal("init failed: ", err)
@@ -54,13 +54,6 @@ func main() {
 			continue
 		}
 
-		session, err := NewStratumSession(conn)
-
-		if err != nil {
-			conn.Close()
-			glog.Error("NewStratumSession failed: ", err)
-		}
-
-		go session.Run()
+		go sessionManager.RunStratumSession(conn)
 	}
 }
