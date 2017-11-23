@@ -61,12 +61,14 @@ func (manager *SessionIDManager) IsFull() bool {
 }
 
 // AllocSessionID 为调用者分配一个会话ID
-func (manager *SessionIDManager) AllocSessionID() (uint32, bool) {
+func (manager *SessionIDManager) AllocSessionID() (sessionID uint32, err error) {
 	defer manager.lock.Unlock()
 	manager.lock.Lock()
 
 	if manager.isFull() {
-		return SessionIDMask, false
+		sessionID = SessionIDMask
+		err = ErrSessionIDFull
+		return
 	}
 
 	// find an empty bit
@@ -81,8 +83,9 @@ func (manager *SessionIDManager) AllocSessionID() (uint32, bool) {
 	manager.sessionIDs.Set(uint(manager.allocIDx))
 	manager.count++
 
-	sessionID := (uint32(manager.serverID) << 24) | manager.allocIDx
-	return sessionID, true
+	sessionID = (uint32(manager.serverID) << 24) | manager.allocIDx
+	err = nil
+	return
 }
 
 // FreeSessionID 释放调用者持有的会话ID
