@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"net"
 	"net/http"
 	_ "net/http/pprof"
 
@@ -31,29 +30,6 @@ func main() {
 		}()
 	}
 
-	// TCP监听
-	glog.Info("Listen TCP ", configData.ListenAddr)
-	ln, err := net.Listen("tcp", configData.ListenAddr)
-
-	if err != nil {
-		glog.Fatal("listen failed: ", err)
-		return
-	}
-
 	sessionManager, err := NewStratumSessionManager(configData)
-
-	if err != nil {
-		glog.Fatal("init failed: ", err)
-		return
-	}
-
-	for {
-		conn, err := ln.Accept()
-
-		if err != nil {
-			continue
-		}
-
-		go sessionManager.RunStratumSession(conn)
-	}
+	sessionManager.Run()
 }
