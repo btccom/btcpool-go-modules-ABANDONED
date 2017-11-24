@@ -172,7 +172,7 @@ func (session *StratumSession) Stop() {
 	session.manager.ReleaseStratumSession(session.sessionID)
 	session.manager = nil
 
-	glog.V(2).Info("Session Stoped: ", session.clientIPPort, "; ", session.fullWorkerName)
+	glog.V(2).Info("Session Stoped: ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 }
 
 func (session *StratumSession) protocolDetect() ProtocolType {
@@ -596,14 +596,14 @@ func (session *StratumSession) proxyStratum() {
 	go func() {
 		session.clientWriter.ReadFrom(session.serverReader)
 		session.Stop()
-		glog.V(3).Info("DownStream: exited")
+		glog.V(3).Info("DownStream: exited;", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 	}()
 
 	// 从客户端到服务器
 	go func() {
 		session.serverWriter.ReadFrom(session.clientReader)
 		session.Stop()
-		glog.V(3).Info("UpStream: exited")
+		glog.V(3).Info("UpStream: exited;", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 	}()
 
 	// 监控来自zookeeper的切换指令并进行Stratum切换
@@ -668,7 +668,7 @@ func (session *StratumSession) proxyStratum() {
 			break
 		}
 
-		glog.V(3).Info("CoinWatcher: exited")
+		glog.V(3).Info("CoinWatcher: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 	}()
 }
 
