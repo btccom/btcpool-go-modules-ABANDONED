@@ -102,7 +102,7 @@ func (manager *StratumSessionManager) RunStratumSession(conn net.Conn) {
 	}
 
 	session := NewStratumSession(manager, conn, sessionID)
-	go session.Run()
+	session.Run()
 }
 
 // ResumeStratumSession 恢复一个Stratum会话
@@ -162,21 +162,24 @@ func (manager *StratumSessionManager) Run(runtimeData RuntimeData) {
 	var err error
 
 	if runtimeData.Action == "upgrade" {
-		// 恢复之前的TCP监听
-		glog.Info("Resume TCP Listener: fd ", runtimeData.TCPListenerFD)
-		manager.tcpListener, err = newListenerFromFd(runtimeData.TCPListenerFD)
-
-		if err != nil {
-			glog.Fatal("resume failed: ", err)
-			return
-		}
-
 		// 恢复 TCP 会话
 		for _, sessionData := range runtimeData.SessionDatas {
 			manager.ResumeStratumSession(sessionData)
 		}
 
-	} else {
+		// 恢复之前的TCP监听
+		// 可能会恢复失败。若恢复失败，则重新监听。
+		glog.Info("Resume TCP Listener: fd ", runtimeData.TCPListenerFD)
+		manager.tcpListener, err = newListenerFromFd(runtimeData.TCPListenerFD)
+
+		if err != nil {
+			glog.Error("resume failed: ", err)
+			manager.tcpListener = nil
+		}
+	}
+
+	// 全新监听，或在恢复监听失败时重新监听
+	if manager.tcpListener == nil {
 		// TCP监听
 		glog.Info("Listen TCP ", manager.tcpListenAddr)
 		manager.tcpListener, err = net.Listen("tcp", manager.tcpListenAddr)
@@ -196,7 +199,7 @@ func (manager *StratumSessionManager) Run(runtimeData RuntimeData) {
 			continue
 		}
 
-		manager.RunStratumSession(conn)
+		go manager.RunStratumSession(conn)
 	}
 }
 
