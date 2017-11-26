@@ -141,6 +141,57 @@ func (session *StratumSession) Run() {
 	session.runProxyStratum()
 }
 
+// Resume 恢复一个Stratum会话
+func (session *StratumSession) Resume(sessionData StratumSessionData, serverConn net.Conn) {
+	session.lock.Lock()
+
+	if session.isRunning {
+		defer session.lock.Unlock()
+		return
+	}
+
+	session.isRunning = true
+	session.lock.Unlock()
+
+	// 恢复服务器连接
+	session.serverConn = serverConn
+	session.serverReader = bufio.NewReader(serverConn)
+	session.serverWriter = bufio.NewWriter(serverConn)
+
+	_, stratumErr := session.parseSubscribeRequest(sessionData.StratumSubscribeRequest)
+	if stratumErr != nil {
+		glog.Error("Resume session ", session.clientIPPort, " failed: ", stratumErr)
+		session.Stop()
+		return
+	}
+
+	stratumErr = session.parseAuthorizeRequest(sessionData.StratumAuthorizeRequest)
+	if stratumErr != nil {
+		glog.Error("Resume session ", session.clientIPPort, " failed: ", stratumErr)
+		session.Stop()
+		return
+	}
+
+	err := session.findMiningCoin()
+	if err != nil {
+		glog.Error("Resume session ", session.clientIPPort, " failed: ", err)
+		session.Stop()
+		return
+	}
+
+	if session.miningCoin != sessionData.MiningCoin {
+		glog.Error("Resume session ", session.clientIPPort, " failed: mining coin changed: ",
+			sessionData.MiningCoin, " -> ", session.miningCoin)
+		session.Stop()
+		return
+	}
+
+	glog.Info("Resume Session Success: ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
+
+	// 此后转入纯代理模式
+	session.proxyStratum()
+}
+
 // Stop 停止一个 Stratum 会话
 func (session *StratumSession) Stop() {
 	session.lock.Lock()
@@ -169,7 +220,7 @@ func (session *StratumSession) Stop() {
 		session.clientConn.Close()
 	}
 
-	session.manager.ReleaseStratumSession(session.sessionID)
+	session.manager.ReleaseStratumSession(session)
 	session.manager = nil
 
 	glog.V(2).Info("Session Stoped: ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
@@ -226,6 +277,57 @@ func (session *StratumSession) runProxyStratum() {
 	session.proxyStratum()
 }
 
+func (session *StratumSession) parseSubscribeRequest(request *JSONRPCRequest) (interface{}, *StratumError) {
+	if request.Method != "mining.subscribe" {
+		return nil, StratumErrNeedSubscribed
+	}
+
+	// 保存原始订阅请求以便转发给Stratum服务器
+	session.stratumSubscribeRequest = request
+
+	// 生成响应
+	result := JSONRPCArray{JSONRPCArray{JSONRPCArray{"mining.set_difficulty", session.sessionIDString}, JSONRPCArray{"mining.notify", session.sessionIDString}}, session.sessionIDString, 8}
+	return result, nil
+}
+
+func (session *StratumSession) parseAuthorizeRequest(request *JSONRPCRequest) *StratumError {
+	if request.Method != "mining.authorize" {
+		return StratumErrNeedAuthorize
+	}
+
+	if len(request.Params) < 1 {
+		return StratumErrTooFewParams
+	}
+
+	fullWorkerName, ok := request.Params[0].(string)
+
+	if !ok {
+		return StratumErrWorkerNameMustBeString
+	}
+
+	// 矿工名
+	session.fullWorkerName = strings.TrimSpace(fullWorkerName)
+
+	if strings.Contains(session.fullWorkerName, ".") {
+		// 截取“.”之前的做为子账户名，“.”及之后的做矿机名
+		pos := strings.Index(session.fullWorkerName, ".")
+		session.subaccountName = session.fullWorkerName[:pos]
+		session.minerNameWithDot = session.fullWorkerName[pos:]
+	} else {
+		session.subaccountName = session.fullWorkerName
+		session.minerNameWithDot = ""
+	}
+
+	if len(session.subaccountName) < 1 {
+		return StratumErrWorkerNameStartWrong
+	}
+
+	// 保存原始请求以便转发给Stratum服务器
+	session.stratumAuthorizeRequest = request
+
+	return nil
+}
+
 func (session *StratumSession) stratumFindWorkerName() error {
 	e := make(chan error, 1)
 	subscribeSuccess := false
@@ -250,18 +352,7 @@ func (session *StratumSession) stratumFindWorkerName() error {
 				continue
 			}
 
-			result, stratumErr := func() (interface{}, *StratumError) {
-				if request.Method != "mining.subscribe" {
-					return nil, StratumErrNeedSubscribed
-				}
-
-				// 保存原始订阅请求以便转发给Stratum服务器
-				session.stratumSubscribeRequest = request
-
-				// 生成响应
-				result := JSONRPCArray{JSONRPCArray{JSONRPCArray{"mining.set_difficulty", session.sessionIDString}, JSONRPCArray{"mining.notify", session.sessionIDString}}, session.sessionIDString, 8}
-				return result, nil
-			}()
+			result, stratumErr := session.parseSubscribeRequest(request)
 
 			response.ID = request.ID
 			response.Result = result
@@ -298,46 +389,10 @@ func (session *StratumSession) stratumFindWorkerName() error {
 				continue
 			}
 
-			result, stratumErr := func() (interface{}, *StratumError) {
-				if request.Method != "mining.authorize" {
-					return nil, StratumErrNeedAuthorize
-				}
-
-				if len(request.Params) < 1 {
-					return nil, StratumErrTooFewParams
-				}
-
-				fullWorkerName, ok := request.Params[0].(string)
-
-				if !ok {
-					return nil, StratumErrWorkerNameMustBeString
-				}
-
-				// 矿工名
-				session.fullWorkerName = strings.TrimSpace(fullWorkerName)
-
-				if strings.Contains(session.fullWorkerName, ".") {
-					// 截取“.”之前的做为子账户名，“.”及之后的做矿机名
-					pos := strings.Index(session.fullWorkerName, ".")
-					session.subaccountName = session.fullWorkerName[:pos]
-					session.minerNameWithDot = session.fullWorkerName[pos:]
-				} else {
-					session.subaccountName = session.fullWorkerName
-					session.minerNameWithDot = ""
-				}
-
-				if len(session.subaccountName) < 1 {
-					return nil, StratumErrWorkerNameStartWrong
-				}
-
-				// 保存原始请求以便转发给Stratum服务器
-				session.stratumAuthorizeRequest = request
-
-				// 此时不发送认证成功的响应，因为事实上还没有连接服务器进行认证
-				return nil, nil
-			}()
+			stratumErr := session.parseAuthorizeRequest(request)
 
 			// 如果认证成功则跳出循环
+			// 此时不发送认证成功的响应，因为事实上还没有连接服务器进行认证
 			if stratumErr == nil {
 				// 发送一个空错误表示成功
 				e <- nil
@@ -346,7 +401,7 @@ func (session *StratumSession) stratumFindWorkerName() error {
 
 			// 否则，把错误信息发给矿机
 			response.ID = request.ID
-			response.Result = result
+			response.Result = nil
 			response.Error = stratumErr.ToJSONRPCArray()
 
 			_, err = session.writeJSONResponseToClient(response)
@@ -591,6 +646,8 @@ func (session *StratumSession) miningAuthorize(fullWorkerName string) (bool, []b
 }
 
 func (session *StratumSession) proxyStratum() {
+	// 注册会话
+	session.manager.RegisterStratumSession(session)
 
 	// 从服务器到客户端
 	go func() {

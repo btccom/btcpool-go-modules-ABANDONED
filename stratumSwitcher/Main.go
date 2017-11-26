@@ -11,6 +11,8 @@ import (
 func main() {
 	// 解析命令行参数
 	configFilePath := flag.String("config", "./config.json", "Path of config file")
+	// 不停机升级时保存的运行状态文件
+	runtimeFilePath := flag.String("runtime", "", "Path of runtime file, use for zero downtime upgrade.")
 	flag.Parse()
 
 	// 读取配置文件
@@ -22,6 +24,13 @@ func main() {
 		return
 	}
 
+	// 读取运行时状态
+	var runtimeData RuntimeData
+
+	if len(*runtimeFilePath) > 0 {
+		runtimeData.LoadFromFile(*runtimeFilePath)
+	}
+
 	// 开启HTTP Debug
 	if configData.EnableHTTPDebug {
 		go func() {
@@ -31,5 +40,9 @@ func main() {
 	}
 
 	sessionManager, err := NewStratumSessionManager(configData)
-	sessionManager.Run()
+	if err != nil {
+		glog.Fatal("create session manager failed: ", err)
+		return
+	}
+	sessionManager.Run(runtimeData)
 }

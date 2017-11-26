@@ -18,7 +18,7 @@ type JSONRPCResponse struct {
 	Error  interface{} `json:"error"`
 }
 
-// JSONRPCResponse JSON RPC 数组
+// JSONRPCArray JSON RPC 数组
 type JSONRPCArray []interface{}
 
 // NewJSONRPCRequest 解析 JSON RPC 请求字符串并创建 JSONRPCRequest 对象

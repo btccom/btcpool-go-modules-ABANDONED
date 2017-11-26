@@ -38,6 +38,8 @@ var (
 	ErrBufIOReadTimeout = errors.New("BufIO Read Timeout")
 	// ErrSessionIDFull SessionID已满（所有可用值均已分配）
 	ErrSessionIDFull = errors.New("Session ID is Full")
+	// ErrSessionIDOccupied SessionID已被占用（恢复SessionID时）
+	ErrSessionIDOccupied = errors.New("Session ID has been occupied")
 	// ErrParseSubscribeResponseFailed 解析订阅响应失败
 	ErrParseSubscribeResponseFailed = errors.New("Parse Subscribe Response Failed")
 	// ErrSessionIDInconformity 返回的会话ID和当前保存的不匹配

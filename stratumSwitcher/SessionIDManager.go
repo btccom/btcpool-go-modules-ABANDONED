@@ -88,6 +88,31 @@ func (manager *SessionIDManager) AllocSessionID() (sessionID uint32, err error) 
 	return
 }
 
+// ResumeSessionID 恢复之前的会话ID
+func (manager *SessionIDManager) ResumeSessionID(sessionID uint32) (err error) {
+	defer manager.lock.Unlock()
+	manager.lock.Lock()
+
+	sessionID = (uint32(manager.serverID) << 24) | sessionID
+
+	// find an empty bit
+	if manager.sessionIDs.Test(uint(sessionID)) {
+		err = ErrSessionIDOccupied
+		return
+	}
+
+	// set to true
+	manager.sessionIDs.Set(uint(sessionID))
+	manager.count++
+
+	if manager.allocIDx <= sessionID {
+		manager.allocIDx = sessionID + 1
+	}
+
+	err = nil
+	return
+}
+
 // FreeSessionID 释放调用者持有的会话ID
 func (manager *SessionIDManager) FreeSessionID(sessionID uint32) {
 	defer manager.lock.Unlock()

@@ -47,3 +47,50 @@ func (conf *ConfigData) SaveToFile(file string) (err error) {
 	err = ioutil.WriteFile(file, configJSON, 0644)
 	return
 }
+
+// StratumSessionData Stratum会话数据
+type StratumSessionData struct {
+	// 会话ID
+	SessionID uint32
+	// 用户所挖的币种
+	MiningCoin string
+
+	ClientConnFD uintptr
+	ServerConnFD uintptr
+
+	StratumSubscribeRequest *JSONRPCRequest
+	StratumAuthorizeRequest *JSONRPCRequest
+}
+
+// RuntimeData 运行时数据
+type RuntimeData struct {
+	Action        string
+	TCPListenerFD uintptr
+	SessionDatas  []StratumSessionData
+}
+
+// LoadFromFile 从文件载入配置
+func (conf *RuntimeData) LoadFromFile(file string) (err error) {
+
+	configJSON, err := ioutil.ReadFile(file)
+
+	if err != nil {
+		return
+	}
+
+	err = json.Unmarshal(configJSON, conf)
+	return
+}
+
+// SaveToFile 保存配置到文件
+func (conf *RuntimeData) SaveToFile(file string) (err error) {
+
+	configJSON, err := json.Marshal(conf)
+
+	if err != nil {
+		return
+	}
+
+	err = ioutil.WriteFile(file, configJSON, 0644)
+	return
+}
