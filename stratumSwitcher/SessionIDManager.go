@@ -93,7 +93,7 @@ func (manager *SessionIDManager) ResumeSessionID(sessionID uint32) (err error) {
 	defer manager.lock.Unlock()
 	manager.lock.Lock()
 
-	sessionID = (uint32(manager.serverID) << 24) | sessionID
+	sessionID = sessionID & SessionIDMask
 
 	// find an empty bit
 	if manager.sessionIDs.Test(uint(sessionID)) {
