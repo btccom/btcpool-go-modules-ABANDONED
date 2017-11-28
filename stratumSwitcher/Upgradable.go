@@ -41,6 +41,7 @@ func (upgradable *Upgradable) upgradeStratumSwitcher() (err error) {
 		sessionData.MiningCoin = session.miningCoin
 		sessionData.StratumSubscribeRequest = session.stratumSubscribeRequest
 		sessionData.StratumAuthorizeRequest = session.stratumAuthorizeRequest
+		sessionData.StratumAuthorizeRequest.Params[0] = session.fullWorkerName
 
 		sessionData.ClientConnFD, err = getConnFd(session.clientConn)
 		if err != nil {
