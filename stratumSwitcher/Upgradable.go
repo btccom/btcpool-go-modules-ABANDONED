@@ -55,8 +55,17 @@ func (upgradable *Upgradable) upgradeStratumSwitcher() (err error) {
 			continue
 		}
 
-		setNoCloseOnExec(sessionData.ClientConnFD)
-		setNoCloseOnExec(sessionData.ServerConnFD)
+		err = setNoCloseOnExec(sessionData.ClientConnFD)
+		if err != nil {
+			glog.Error("setNoCloseOnExec Failed: ", err)
+			continue
+		}
+
+		err = setNoCloseOnExec(sessionData.ServerConnFD)
+		if err != nil {
+			glog.Error("setNoCloseOnExec Failed: ", err)
+			continue
+		}
 
 		runtimeData.SessionDatas = append(runtimeData.SessionDatas, sessionData)
 	}

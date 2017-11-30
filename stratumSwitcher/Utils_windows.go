@@ -20,12 +20,12 @@ func fcntl(fd int, cmd int, arg int) (val int, err error) {
 	return
 }
 
-func setCloseOnExec(fd uintptr) {
+func setCloseOnExec(fd uintptr) (err error) {
 	glog.Fatal("Function setCloseOnExec has not implement in Windows.")
 	return
 }
 
-func setNoCloseOnExec(fd uintptr) {
+func setNoCloseOnExec(fd uintptr) (err error) {
 	glog.Fatal("Function setNoCloseOnExec has not implement in Windows.")
 	return
 }

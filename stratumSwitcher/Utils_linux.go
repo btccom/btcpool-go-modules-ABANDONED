@@ -29,12 +29,14 @@ func fcntl(fd int, cmd int, arg int) (val int, err error) {
 	return
 }
 
-func setCloseOnExec(fd uintptr) {
-	fcntl(int(fd), syscall.F_SETFD, syscall.FD_CLOEXEC)
+func setCloseOnExec(fd uintptr) (err error) {
+	_, err = fcntl(int(fd), syscall.F_SETFD, syscall.FD_CLOEXEC)
+	return
 }
 
-func setNoCloseOnExec(fd uintptr) {
-	fcntl(int(fd), syscall.F_SETFD, ^syscall.FD_CLOEXEC)
+func setNoCloseOnExec(fd uintptr) (err error) {
+	_, err = fcntl(int(fd), syscall.F_SETFD, ^syscall.FD_CLOEXEC)
+	return
 }
 
 func execNewBin(binPath string, args []string) (err error) {
@@ -83,7 +85,10 @@ func getListenerFd(listener net.Listener) (fd uintptr, err error) {
 
 func newConnFromFd(fd uintptr) (conn net.Conn, err error) {
 	// 防止文件描述符泄露
-	setCloseOnExec(fd)
+	err = setCloseOnExec(fd)
+	if err != nil {
+		return
+	}
 
 	f := os.NewFile(fd, "tcp conn")
 	conn, err = net.FileConn(f)
@@ -92,7 +97,10 @@ func newConnFromFd(fd uintptr) (conn net.Conn, err error) {
 
 func newListenerFromFd(fd uintptr) (listener net.Listener, err error) {
 	// 防止文件描述符泄露
-	setCloseOnExec(fd)
+	err = setCloseOnExec(fd)
+	if err != nil {
+		return
+	}
 
 	f := os.NewFile(fd, "tcp listener")
 	listener, err = net.FileListener(f)
