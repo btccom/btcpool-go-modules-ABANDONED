@@ -9,16 +9,16 @@
 			"revisionTime": "2016-01-25T20:49:56Z"
 		},
 		{
-			"checksumSHA1": "Vo8anQz2gbx3FnURv/wpv57zWP4=",
+			"checksumSHA1": "y33yd1uDZmV3VY4K/5FCGTeRtB8=",
 			"path": "github.com/samuel/go-zookeeper/zk",
-			"revision": "e6b59f6144beb8570562539c1898a0b1fea34b41",
-			"revisionTime": "2017-08-15T20:11:39Z"
+			"revision": "471cd4e61d7a78ece1791fa5faa0345dc8c7d5a5",
+			"revisionTime": "2017-11-17T18:40:27Z"
 		},
 		{
-			"checksumSHA1": "6KZEap6v/5gD+tjiNbpD81kD61o=",
+			"checksumSHA1": "5amfcgkpgnDTPxm8yPfdeHUW9KQ=",
 			"path": "github.com/willf/bitset",
-			"revision": "988f4f24992fc745de53c42df0da6581e42a6686",
-			"revisionTime": "2017-05-05T19:16:46Z"
+			"revision": "1a37ad96e8c1a11b20900a232874843b5174221f",
+			"revisionTime": "2017-09-05T00:26:39Z"
 		}
 	],
 	"rootPath": "github.com/btccom/stratumSwitcher"
