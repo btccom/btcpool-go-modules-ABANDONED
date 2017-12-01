@@ -4,11 +4,21 @@
 
 ### 构建 & 运行
 
+安装golang
+
+```bash
+mkdir ~/source
+cd ~/source
+wget http://storage.googleapis.com/golang/go1.9.2.linux-amd64.tar.gz
+cd /usr/local
+tar zxf ~/source/go1.9.2.linux-amd64.tar.gz
+ln -s /usr/local/go/bin/go /usr/local/bin/go
+```
+
 构建
 
 ```bash
 mkdir -p /work/golang
-apt install -y golang
 export GOPATH=/work/golang
 GIT_TERMINAL_PROMPT=1 go get github.com/btccom/stratumSwitcher/stratumSwitcher
 ```

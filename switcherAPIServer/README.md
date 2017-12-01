@@ -119,9 +119,9 @@ curl -u admin:admin -d '{"usercoins":[{"coin":"btc","punames":["a","b","c"]},{"c
 ```bash
 mkdir ~/source
 cd ~/source
-wget https://storage.googleapis.com/golang/go1.9.1.linux-amd64.tar.gz
+wget http://storage.googleapis.com/golang/go1.9.2.linux-amd64.tar.gz
 cd /usr/local
-tar zxf ~/source/go1.9.1.linux-amd64.tar.gz
+tar zxf ~/source/go1.9.2.linux-amd64.tar.gz
 ln -s /usr/local/go/bin/go /usr/local/bin/go
 ```
 
