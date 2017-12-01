@@ -73,3 +73,23 @@ export GOPATH=/work/golang
 GIT_TERMINAL_PROMPT=1 go get -u github.com/btccom/stratumSwitcher/stratumSwitcher
 diff /work/golang/src/github.com/btccom/stratumSwitcher/stratumSwitcher/config.default.json /work/golang/stratumSwitcher/config.json
 ```
+
+##### 平滑重启/热更新（实验性）
+
+该功能可用于升级 stratumSwitcher 到新版本、更改 stratumSwitcher 配置使其生效，或单纯的重启服务。在服务重启过程中，大部分正在代理的Stratum连接都不会断开。
+
+目前该功能仅在Linux上可用。
+
+```bash
+killall -USR2 stratumSwitcher
+```
+
+进程将在原pid上载入新的二进制，不会产生新的pid。在原进程退出前，会写入“./runtime.json”（包含监听端口和其正在代理的所有连接的信息）供新进程恢复连接使用。请确保进程对其工作目录有写权限。
+
+在大部分情况下，新进程可以恢复所有原进程正在代理的连接，但是所有处于认证阶段的连接将被抛弃。
+
+不过偶尔有时候，新进程无法恢复某些连接（提示文件描述符无效），此时这些连接将断开，不会造成资源泄漏。
+
+但在极端情况下，新进程会无法恢复监听端口的文件描述符。新进程会尝试重新监听，但是偶尔也会失败，这将导致新进程无法继续对外服务，曾经观察到过这样的现象。
+
+因此，在使用平滑重启功能后，请检查新进程是能正常接受新连接。
