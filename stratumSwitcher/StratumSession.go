@@ -438,7 +438,7 @@ func (session *StratumSession) findMiningCoin() error {
 	data, _, event, err := session.manager.zookeeperConn.GetW(session.zkWatchPath)
 
 	if err != nil {
-		glog.Error("FindMiningCoin Failed: " + session.zkWatchPath + "; " + err.Error())
+		glog.Info("FindMiningCoin Failed: " + session.zkWatchPath + "; " + err.Error())
 
 		response := JSONRPCResponse{nil, nil, JSONRPCArray{201, "Cannot Found Minning Coin Type", nil}}
 		session.writeJSONResponseToClient(&response)
