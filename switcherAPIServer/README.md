@@ -1,8 +1,22 @@
 # Switcher API Server
 
-调用该进程提供的 API 来控制 StratumSwitcher 进行币种切换。该进程通过向 Zookeeper 的特定目录写入值来通知 StratumSwitcher 进行切换。
+该进程用来修改 zookeeper 中的币种记录，以便控制 StratumSwitcher 进行币种切换。该进程一共有两种工作方式，一为通过定时任务拉取最新的用户币种信息，二为外部通过调用该进程提供的API来主动推送用户币种信息。
+
+## 定时任务
+
+在配置文件中设置 EnableCronJob 为 true 即可开启定时任务，此后进程将每隔 `CronIntervalSeconds` 拉取一次 `UserCoinMapURL`，以获得最新的用户币种信息。
+
+`UserCoinMapURL` 的参考实现如下：
+
+```php
+待添加
+```
 
 ## API 文档
+
+在配置文件中设置 EnableAPIServer 为 true 即可开启该API服务。外部在用户发起切换请求时可调用该API主动推送切换消息，以便 StratumSwitcher 第一时间进行币种切换。
+
+目前共有两种调用方式：
 
 ### 单用户切换
 
