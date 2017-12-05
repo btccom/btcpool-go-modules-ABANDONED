@@ -2,6 +2,8 @@
 
 通过拉取每个币种的子账户名/puid列表来初始化zookeeper里的用户币种记录
 
+该子账户名/puid列表与 BTCPool 里 [sserver](https://github.com/btccom/btcpool/blob/master/src/sserver/sserver.cfg) 要求的相同，这里有一个实现的例子：https://github.com/btccom/btcpool/issues/16#issuecomment-278245381
+
 ### 构建 & 运行
 
 安装golang
