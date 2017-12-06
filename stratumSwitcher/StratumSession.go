@@ -348,7 +348,7 @@ func (session *StratumSession) stratumFindWorkerName() error {
 
 			// ignore the json decode error
 			if err != nil {
-				glog.Warning("JSON decode failed: ", err.Error(), string(requestJSON))
+				glog.Info("JSON decode failed: ", err.Error(), string(requestJSON))
 				continue
 			}
 
@@ -385,7 +385,7 @@ func (session *StratumSession) stratumFindWorkerName() error {
 
 			// ignore the json decode error
 			if err != nil {
-				glog.Warning("JSON decode failed: ", err.Error(), string(requestJSON))
+				glog.Info("JSON decode failed: ", err.Error(), string(requestJSON))
 				continue
 			}
 
