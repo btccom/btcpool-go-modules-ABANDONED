@@ -166,7 +166,13 @@ func (manager *ZookeeperManager) ReleaseW(path string, sessionID uint32) {
 	delete(watcher.watcherChannels, sessionID)
 	glog.V(3).Info("Zookeeper: release WatcherChannel: ", path, "; ", Uint32ToHex(sessionID))
 
-	if len(watcher.watcherChannels) == 0 {
-		manager.removeNodeWatcher(watcher)
-	}
+	// go-zookeeper 的代码显示，它的watcher只会在接收到事件后关闭并释放，
+	// 因此，在此处移除 NodaWatcher 并不能使 go-zookeeper 中的 watcher 释放，
+	// 并且，反复打开新 watcher 反而会导致 go-zookeeper 处生成大量 watcher 而内存泄露。
+	// 因此，此处不再自动释放 NodeWatcher。NodeWatcher 只在接收到 zookeeper 事件后释放。
+	/*
+		if len(watcher.watcherChannels) == 0 {
+			manager.removeNodeWatcher(watcher)
+		}
+	*/
 }
