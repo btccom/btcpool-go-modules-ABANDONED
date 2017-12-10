@@ -1,17 +1,11 @@
 package main
 
 import (
-	"errors"
 	"net"
 	"sync"
-	"time"
 
 	"github.com/golang/glog"
-	"github.com/samuel/go-zookeeper/zk"
 )
-
-// zookeeper连接超时时间
-const zookeeperConnectingTimeoutSeconds = 60
 
 // StratumServerInfo Stratum服务器的信息
 type StratumServerInfo struct {
@@ -34,8 +28,8 @@ type StratumSessionManager struct {
 	sessionIDManager *SessionIDManager
 	// Stratum服务器列表
 	stratumServerInfoMap StratumServerInfoMap
-	// Zookeeper连接
-	zookeeperConn *zk.Conn
+	// Zookeeper管理器
+	zookeeperManager *ZookeeperManager
 	// zookeeperSwitcherWatchDir 切换服务监控的zookeeper目录路径
 	// 具体监控的路径为 zookeeperSwitcherWatchDir/子账户名
 	zookeeperSwitcherWatchDir string
@@ -56,36 +50,7 @@ func NewStratumSessionManager(conf ConfigData) (manager *StratumSessionManager, 
 	manager.stratumServerInfoMap = conf.StratumServerMap
 	manager.zookeeperSwitcherWatchDir = conf.ZKSwitcherWatchDir
 	manager.tcpListenAddr = conf.ListenAddr
-
-	// 建立到Zookeeper集群的连接
-	var event <-chan zk.Event
-	manager.zookeeperConn, event, err = zk.Connect(conf.ZKBroker, time.Duration(zookeeperConnTimeout)*time.Second)
-	if err != nil {
-		return
-	}
-
-	zkConnected := make(chan bool, 1)
-
-	go func() {
-		glog.Info("Zookeeper: waiting for connecting to ", conf.ZKBroker, "...")
-		for {
-			e := <-event
-			glog.Info("Zookeeper: ", e)
-
-			if e.State == zk.StateConnected {
-				zkConnected <- true
-				return
-			}
-		}
-	}()
-
-	select {
-	case <-zkConnected:
-		break
-	case <-time.After(zookeeperConnectingTimeoutSeconds * time.Second):
-		err = errors.New("Zookeeper: connecting timeout")
-		break
-	}
+	manager.zookeeperManager, err = NewZookeeperManager(conf.ZKBroker)
 
 	return
 }
@@ -155,6 +120,8 @@ func (manager *StratumSessionManager) ReleaseStratumSession(session *StratumSess
 	manager.lock.Unlock()
 	// 释放会话ID
 	manager.sessionIDManager.FreeSessionID(session.sessionID)
+	// 从Zookeeper管理器中删除币种监控
+	manager.zookeeperManager.ReleaseW(session.zkWatchPath, session.sessionID)
 }
 
 // Run 开始运行StratumSwitcher服务

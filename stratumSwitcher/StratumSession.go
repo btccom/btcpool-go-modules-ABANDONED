@@ -2,9 +2,6 @@ package main
 
 import (
 	"bufio"
-	"bytes"
-	"encoding/binary"
-	"encoding/hex"
 	"errors"
 	"net"
 	"strings"
@@ -31,9 +28,6 @@ const readSubscribeResponseTimeoutSeconds = 10
 // 若长时间接收不到消息，就无法及时处理对端已断开事件，
 // 因此设置接收超时时间，每隔一定时间就放弃接收，检查状态，并重新开始接收
 const receiveMessageTimeoutSeconds = 15
-
-// Zookeeper连接超时时间
-const zookeeperConnTimeout = 5
 
 // ProtocolType 代理的协议类型
 type ProtocolType int
@@ -98,11 +92,7 @@ func NewStratumSession(manager *StratumSessionManager, clientConn net.Conn, sess
 	session.clientWriter = bufio.NewWriter(clientConn)
 
 	session.clientIPPort = clientConn.RemoteAddr().String()
-
-	// uint32 to string
-	bytesBuffer := bytes.NewBuffer([]byte{})
-	binary.Write(bytesBuffer, binary.BigEndian, sessionID)
-	session.sessionIDString = hex.EncodeToString(bytesBuffer.Bytes())
+	session.sessionIDString = Uint32ToHex(session.sessionID)
 
 	glog.V(3).Info("IP: ", session.clientIPPort, ", Session ID: ", session.sessionIDString)
 
@@ -435,7 +425,7 @@ func (session *StratumSession) findMiningCoin() error {
 	// 从zookeeper读取用户想挖的币种
 
 	session.zkWatchPath = session.manager.zookeeperSwitcherWatchDir + session.subaccountName
-	data, _, event, err := session.manager.zookeeperConn.GetW(session.zkWatchPath)
+	data, event, err := session.manager.zookeeperManager.GetW(session.zkWatchPath, session.sessionID)
 
 	if err != nil {
 		glog.Info("FindMiningCoin Failed: " + session.zkWatchPath + "; " + err.Error())
@@ -665,41 +655,23 @@ func (session *StratumSession) proxyStratum() {
 
 	// 监控来自zookeeper的切换指令并进行Stratum切换
 	go func() {
-		for session.IsRunning() {
-
-			select {
-			case <-session.zkWatchEvent:
-				// 接收到数据，继续后续流程
-
-			case <-time.After(receiveMessageTimeoutSeconds * time.Second):
-				// 超时，继续下一轮循环（若session已停止，将在下一轮中退出）
-				continue
-			}
+		for {
+			<-session.zkWatchEvent
 
 			if !session.IsRunning() {
+				glog.V(3).Info("CoinWatcher: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 				break
 			}
 
-			data, _, event, err := session.manager.zookeeperConn.GetW(session.zkWatchPath)
-			session.zkWatchEvent = event
+			data, event, err := session.manager.zookeeperManager.GetW(session.zkWatchPath, session.sessionID)
 
 			if err != nil {
-				glog.Error("Read From Zookeeper Failed: ", session.zkWatchPath, "; ", err)
-
-				// 忽略GetW的错误并尝试继续监控
-				_, _, existEvent, err := session.manager.zookeeperConn.ExistsW(session.zkWatchPath)
-
-				// 还是失败，放弃监控并结束会话
-				if err != nil {
-					glog.Error("Watch From Zookeeper Failed: ", session.zkWatchPath, "; ", err)
-					session.Stop()
-					break
-				}
-
-				session.zkWatchEvent = existEvent
+				glog.Error("Read From Zookeeper Failed, sleep ", zookeeperConnAliveTimeout, "s: ", session.zkWatchPath, "; ", err)
+				time.Sleep(zookeeperConnAliveTimeout * time.Second)
 				continue
 			}
 
+			session.zkWatchEvent = event
 			newMiningCoin := string(data)
 
 			// 若币种未改变，则继续监控
@@ -722,10 +694,9 @@ func (session *StratumSession) proxyStratum() {
 			// 因此没有办法安全的无缝切换BTCAgent会话。
 			// 所以，采用断开连接的方法反而更保险。
 			session.Stop()
+			glog.V(3).Info("CoinWatcher: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 			break
 		}
-
-		glog.V(3).Info("CoinWatcher: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 	}()
 }
 

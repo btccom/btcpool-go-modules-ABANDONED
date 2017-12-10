@@ -76,7 +76,7 @@ func (upgradable *Upgradable) upgradeStratumSwitcher() (err error) {
 		return
 	}
 
-	upgradable.sessionManager.zookeeperConn.Close()
+	upgradable.sessionManager.zookeeperManager.zookeeperConn.Close()
 
 	var args []string
 	for _, arg := range os.Args[1:] {

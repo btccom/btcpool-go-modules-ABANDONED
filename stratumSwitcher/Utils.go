@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"net"
 	"strconv"
 )
@@ -26,4 +27,11 @@ func Long2IP(ipLong uint32) string {
 	b2 := strconv.FormatInt((ipInt>>8)&0xff, 10)
 	b3 := strconv.FormatInt((ipInt & 0xff), 10)
 	return b0 + "." + b1 + "." + b2 + "." + b3
+}
+
+// unit32 转 hex
+func Uint32ToHex(num uint32) string {
+	bytesBuffer := bytes.NewBuffer([]byte{})
+	binary.Write(bytesBuffer, binary.BigEndian, num)
+	return hex.EncodeToString(bytesBuffer.Bytes())
 }
