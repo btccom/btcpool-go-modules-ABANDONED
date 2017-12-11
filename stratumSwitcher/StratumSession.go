@@ -101,8 +101,8 @@ func NewStratumSession(manager *StratumSessionManager, clientConn net.Conn, sess
 
 // IsRunning 检查会话是否在运行（线程安全）
 func (session *StratumSession) IsRunning() bool {
-	defer session.lock.Unlock()
 	session.lock.Lock()
+	defer session.lock.Unlock()
 
 	return session.isRunning
 }
@@ -112,7 +112,7 @@ func (session *StratumSession) Run() {
 	session.lock.Lock()
 
 	if session.isRunning {
-		defer session.lock.Unlock()
+		session.lock.Unlock()
 		return
 	}
 
@@ -136,7 +136,7 @@ func (session *StratumSession) Resume(sessionData StratumSessionData, serverConn
 	session.lock.Lock()
 
 	if session.isRunning {
-		defer session.lock.Unlock()
+		session.lock.Unlock()
 		return
 	}
 
@@ -187,7 +187,7 @@ func (session *StratumSession) Stop() {
 	session.lock.Lock()
 
 	if !session.isRunning {
-		defer session.lock.Unlock()
+		session.lock.Unlock()
 		return
 	}
 
@@ -320,18 +320,18 @@ func (session *StratumSession) parseAuthorizeRequest(request *JSONRPCRequest) *S
 
 func (session *StratumSession) stratumFindWorkerName() error {
 	e := make(chan error, 1)
-	subscribeSuccess := false
 
 	go func() {
+		defer close(e)
 		response := new(JSONRPCResponse)
 
 		// 矿机订阅
-		for true {
+		for {
 			requestJSON, err := session.clientReader.ReadBytes('\n')
 
 			if err != nil {
 				e <- errors.New("read line failed: " + err.Error())
-				break
+				return
 			}
 
 			request, err := NewJSONRPCRequest(requestJSON)
@@ -352,23 +352,22 @@ func (session *StratumSession) stratumFindWorkerName() error {
 
 			if err != nil {
 				e <- errors.New("Write JSON Response Failed: " + err.Error())
-				break
+				return
 			}
 
 			// 如果订阅成功则跳出循环
 			if stratumErr == nil {
-				subscribeSuccess = true
 				break
 			}
 		}
 
 		// 矿机认证
-		for subscribeSuccess {
+		for {
 			requestJSON, err := session.clientReader.ReadBytes('\n')
 
 			if err != nil {
 				e <- errors.New("read line failed: " + err.Error())
-				break
+				return
 			}
 
 			request, err := NewJSONRPCRequest(requestJSON)
@@ -386,7 +385,7 @@ func (session *StratumSession) stratumFindWorkerName() error {
 			if stratumErr == nil {
 				// 发送一个空错误表示成功
 				e <- nil
-				break
+				return
 			}
 
 			// 否则，把错误信息发给矿机
@@ -398,11 +397,9 @@ func (session *StratumSession) stratumFindWorkerName() error {
 
 			if err != nil {
 				e <- errors.New("Write JSON Response Failed: " + err.Error())
-				break
+				return
 			}
 		}
-
-		close(e)
 	}()
 
 	select {
@@ -659,7 +656,6 @@ func (session *StratumSession) proxyStratum() {
 			<-session.zkWatchEvent
 
 			if !session.IsRunning() {
-				glog.V(3).Info("CoinWatcher: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 				break
 			}
 
@@ -694,9 +690,10 @@ func (session *StratumSession) proxyStratum() {
 			// 因此没有办法安全的无缝切换BTCAgent会话。
 			// 所以，采用断开连接的方法反而更保险。
 			session.Stop()
-			glog.V(3).Info("CoinWatcher: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 			break
 		}
+
+		glog.V(3).Info("CoinWatcher: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 	}()
 }
 

@@ -41,6 +41,7 @@ func (upgradable *Upgradable) upgradeStratumSwitcher() (err error) {
 		sessionData.MiningCoin = session.miningCoin
 		sessionData.StratumSubscribeRequest = session.stratumSubscribeRequest
 		sessionData.StratumAuthorizeRequest = session.stratumAuthorizeRequest
+		// 使用矿机提交的原始矿工名，避免带有币种后缀的矿工名导致后续认证失败
 		sessionData.StratumAuthorizeRequest.Params[0] = session.fullWorkerName
 
 		sessionData.ClientConnFD, err = getConnFd(session.clientConn)
