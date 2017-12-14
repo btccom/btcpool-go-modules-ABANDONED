@@ -4,7 +4,67 @@
 
 ## 定时任务
 
-在配置文件中设置 EnableCronJob 为 true 即可开启定时任务，此后进程将每隔 `CronIntervalSeconds` 拉取一次 `UserCoinMapURL`，以获得最新的用户币种信息。
+在配置文件中设置 `EnableCronJob` 为 `true` 即可开启定时任务，此后进程将每隔 `CronIntervalSeconds` 拉取一次 `UserCoinMapURL`，以获得最新的用户币种信息。
+
+### 接口约定
+
+假设 `UserCoinMapURL` 为 `http://127.0.0.1:8000/usercoin.php`，则程序首次访问的实际URL为：
+```
+http://127.0.0.1:8000/usercoin.php?last_date=0
+```
+
+接口返回一个JSON字符串，包含所有用户及其正在挖的币种（无论是否进行过切换），形如：
+```json
+{
+    "err_no": 0,
+    "data": {
+        "user_coin": {
+            "user1": "btc",
+            "user2": "bcc",
+            "user3": "bcc",
+            "user4": "btc"
+        },
+        "now_date": 1513239055
+    }
+}
+```
+其中，`user1`、`user2`、`user3`为子账户名，`btc`和`bcc`为币种，`now_date`为服务器的当前系统时间。
+
+经过配置文件中设置的 `CronIntervalSeconds` 秒后，程序会再次访问如下URL：
+```
+http://127.0.0.1:8000/usercoin.php?last_date=1513239055
+```
+其中，`1513239055`为上次服务器返回的`now_date`。
+
+此时，服务器可根据程序提供的`last_date`进行判断，如果在`last_date`到现在这段时间内没有任何用户进行过切换，则返回空`user_coin`对象：
+```json
+{
+    "err_no": 0,
+    "data": {
+        "user_coin": {},
+        "now_date": 1513239064
+    }
+}
+```
+> 注意：不可返回`user_coin`数组，如`"user_coin":[]`，否则程序会在日志中产生警告。使用PHP数组实现接口时，在输出前请先将`user_coin`成员的类型强制转换为对象。
+
+否则，返回在这段时间内进行切换的用户及切换后的币种：
+```json
+{
+    "err_no": 0,
+    "data": {
+        "user_coin": {
+            "user1": "bcc",
+            "user3": "btc"
+        },
+        "now_date": 1513239064
+    }
+}
+```
+
+备注：如果性能不受影响，服务器也可以忽略`last_date`参数，总是返回所有用户及其正在挖的币种，无论其是否或在什么时间进行过切换。
+
+### 参考实现
 
 `UserCoinMapURL` 的参考实现如下：
 
