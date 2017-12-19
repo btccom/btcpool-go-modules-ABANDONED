@@ -19,3 +19,6 @@ debug
 log/
 config.json
 testproject
+
+# build dir
+build*/

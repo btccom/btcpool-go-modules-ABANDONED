@@ -23,6 +23,16 @@ export GOPATH=/work/golang
 GIT_TERMINAL_PROMPT=1 go get github.com/btccom/stratumSwitcher/stratumSwitcher
 ```
 
+生成安装包（可选）
+
+```bash
+cd $GOPATH/src/github.com/btccom/stratumSwitcher/stratumSwitcher
+mkdir build
+cd build
+cmake ..
+make package
+```
+
 编辑配置文件
 
 ```bash
