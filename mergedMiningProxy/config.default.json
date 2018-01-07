@@ -1,0 +1,50 @@
+{
+    "RPCUser": "admin",
+    "RPCPasswd": "admin",
+    "RPCListenAddr": "0.0.0.0:8999",
+
+    "Chains": [
+        {
+            "Name": "Namecoin",
+            "RPCUrl": "http://127.0.0.1:8444/",
+            "RPCUser": "test",
+            "RPCPasswd": "123",
+            "CreateAuxBlock": {
+                "Method": "getauxblock",
+                "Params": [],
+                "ResponseKeys": {
+                    "Hash": "hash",
+                    "ChainID": "chainid",
+                    "Bits": "bits",
+                    "Target": "_target",
+                    "Height": "height",
+                    "PrevBlockHash": "previousblockhash",
+                    "CoinbaseValue": "coinbasevalue"
+                }
+            },
+            "SubmitAuxBlock": {
+                "Method": "getauxblock",
+                "Params": [
+                    "{coinbase-hex}",
+                    "{branch-length-hex}{branch-hash-hex}{branch-side-mask-hex}"
+                ]
+            }
+        },
+        {
+            "Name": "Namecoin Testnet",
+            "RPCUrl": "http://127.0.0.1:18444/",
+            "RPCUser": "test",
+            "RPCPasswd": "123",
+            "CreateAuxBlock": {
+                "Method": "createauxblock",
+                "Params": [ "N59bssPo1MbK3khwPELTEomyzYbHLb59uY" ],
+                "ResponseKeys": {
+                    "Hash": "hash",
+                    "ChainID": "chainid",
+                    "Bits": "bits",
+                    "Target": "_target"
+                }
+            }
+        }
+    ]
+}
