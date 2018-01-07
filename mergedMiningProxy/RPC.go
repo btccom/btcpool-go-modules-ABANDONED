@@ -51,7 +51,7 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 
 	hashKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["Hash"]
 	if !ok {
-		err = errors.New("config: missing Chains[n].CreateAuxBlock.ResponseKeys.Hash")
+		err = errors.New("config: missing CreateAuxBlock.ResponseKeys.Hash")
 		return
 	}
 
@@ -84,7 +84,7 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 	// ------------ ChainID ------------
 	chainIDKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["ChainID"]
 	if !ok {
-		err = errors.New("config: missing Chains[n].CreateAuxBlock.ResponseKeys.ChainID")
+		err = errors.New("config: missing CreateAuxBlock.ResponseKeys.ChainID")
 		return
 	}
 
@@ -106,7 +106,7 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 
 	bitsKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["Bits"]
 	if !ok {
-		err = errors.New("config: missing Chains[n].CreateAuxBlock.ResponseKeys.Bits")
+		err = errors.New("config: missing CreateAuxBlock.ResponseKeys.Bits")
 		return
 	}
 
@@ -126,7 +126,7 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 
 	targetKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["Target"]
 	if !ok {
-		err = errors.New("config: missing Chains[n].CreateAuxBlock.ResponseKeys.Target")
+		err = errors.New("config: missing CreateAuxBlock.ResponseKeys.Target")
 		return
 	}
 
@@ -160,7 +160,7 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 
 	heightKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["Height"]
 	if !ok {
-		glog.Info("config: missing (optional) Chains[n].CreateAuxBlock.ResponseKeys.Bits, skip")
+		glog.Info("config: missing (optional) CreateAuxBlock.ResponseKeys.Bits, skip")
 	} else {
 		height, ok := auxBlockInfo.RPCRawResult[heightKey]
 		if !ok {
@@ -180,7 +180,7 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 
 	prevBlockHashKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["PrevBlockHash"]
 	if !ok {
-		glog.Info("config: missing (optional) Chains[n].CreateAuxBlock.ResponseKeys.PrevBlockHash, skip")
+		glog.Info("config: missing (optional) CreateAuxBlock.ResponseKeys.PrevBlockHash, skip")
 	} else {
 		prevBlockHash, ok := auxBlockInfo.RPCRawResult[prevBlockHashKey]
 		if !ok {
@@ -212,7 +212,7 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 	// ------------ CoinbaseValue ------------
 	coinbaseValueKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["CoinbaseValue"]
 	if !ok {
-		glog.Info("config: missing (optional) Chains[n].CreateAuxBlock.ResponseKeys.CoinbaseValue, skip")
+		glog.Info("config: missing (optional) CreateAuxBlock.ResponseKeys.CoinbaseValue, skip")
 	} else {
 
 		coinbaseValue, ok := auxBlockInfo.RPCRawResult[coinbaseValueKey]
