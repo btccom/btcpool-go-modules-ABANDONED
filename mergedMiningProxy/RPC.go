@@ -180,7 +180,7 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 
 	prevBlockHashKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["PrevBlockHash"]
 	if !ok {
-		glog.Info("config: missing Chains[n].CreateAuxBlock.ResponseKeys.PrevBlockHash, skip")
+		glog.Info("config: missing (optional) Chains[n].CreateAuxBlock.ResponseKeys.PrevBlockHash, skip")
 	} else {
 		prevBlockHash, ok := auxBlockInfo.RPCRawResult[prevBlockHashKey]
 		if !ok {
@@ -212,23 +212,23 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 	// ------------ CoinbaseValue ------------
 	coinbaseValueKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["CoinbaseValue"]
 	if !ok {
-		err = errors.New("config: missing Chains[n].CreateAuxBlock.ResponseKeys.CoinbaseValue")
-		return
-	}
+		glog.Info("config: missing (optional) Chains[n].CreateAuxBlock.ResponseKeys.CoinbaseValue, skip")
+	} else {
 
-	coinbaseValue, ok := auxBlockInfo.RPCRawResult[coinbaseValueKey]
-	if !ok {
-		err = errors.New("rpc result: missing " + coinbaseValueKey)
-		return
-	}
+		coinbaseValue, ok := auxBlockInfo.RPCRawResult[coinbaseValueKey]
+		if !ok {
+			err = errors.New("rpc result: missing " + coinbaseValueKey)
+			return
+		}
 
-	coinbaseValueFloat, ok := coinbaseValue.(float64)
-	if !ok {
-		err = errors.New("rpc result: " + coinbaseValueKey + " is not a number")
-		return
-	}
+		coinbaseValueFloat, ok := coinbaseValue.(float64)
+		if !ok {
+			err = errors.New("rpc result: " + coinbaseValueKey + " is not a number")
+			return
+		}
 
-	auxBlockInfo.CoinbaseValue = uint32(coinbaseValueFloat)
+		auxBlockInfo.CoinbaseValue = uint32(coinbaseValueFloat)
+	}
 
 	// ------------ Finished ------------
 	return
