@@ -36,37 +36,54 @@ type RPCSubmitAuxBlockInfo struct {
 	Params []interface{}
 }
 
-// CoinRPCInfo 合并挖矿币种的RPC信息
-type CoinRPCInfo struct {
+// ChainRPCServer 合并挖矿的链的RPC服务器
+type ChainRPCServer struct {
+	URL    string
+	User   string
+	Passwd string
+}
+
+// ChainRPCInfo 合并挖矿币种的RPC信息
+type ChainRPCInfo struct {
 	ChainID        uint32
 	Name           string
-	RPCUrl         string
-	RPCUser        string
-	RPCPasswd      string
+	RPCServer      ChainRPCServer
 	CreateAuxBlock RPCCreateAuxBlockInfo
 	SubmitAuxBlock RPCSubmitAuxBlockInfo
 }
 
+// ProxyRPCServer 该代理的RPC服务器信息
+type ProxyRPCServer struct {
+	ListenAddr string
+	User       string
+	Passwd     string
+}
+
+// AuxJobMakerInfo 辅助挖矿任务生成配置
+type AuxJobMakerInfo struct {
+	CreateAuxBlockIntervalSeconds uint
+	AuxPowJobListSize             uint
+}
+
 // ConfigData 配置文件的数据结构
 type ConfigData struct {
-	RPCUser       string
-	RPCPasswd     string
-	RPCListenAddr string
-	Chains        []CoinRPCInfo
+	RPCServer   ProxyRPCServer
+	AuxJobMaker AuxJobMakerInfo
+	Chains      []ChainRPCInfo
 }
 
 // Check 检查配置的合法性
 func (conf *ConfigData) Check() (err error) {
-	if len(conf.RPCUser) < 1 {
-		return errors.New("RPCUser cannot be empty")
+	if len(conf.RPCServer.User) < 1 {
+		return errors.New("RPCServer.User cannot be empty")
 	}
 
-	if len(conf.RPCPasswd) < 1 {
-		return errors.New("RPCPasswd cannot be empty")
+	if len(conf.RPCServer.Passwd) < 1 {
+		return errors.New("RPCServer.Passwd cannot be empty")
 	}
 
-	if len(conf.RPCListenAddr) < 1 {
-		return errors.New("RPCListenAddr cannot be empty")
+	if len(conf.RPCServer.ListenAddr) < 1 {
+		return errors.New("RPCServer.ListenAddr cannot be empty")
 	}
 
 	if len(conf.Chains) < 1 {
@@ -79,8 +96,8 @@ func (conf *ConfigData) Check() (err error) {
 			return errors.New("Chains[" + strconv.Itoa(index) + "].Name cannot be empty")
 		}
 
-		if len(chain.RPCUrl) < 1 {
-			return errors.New("Chains[" + strconv.Itoa(index) + "].RPCUrl cannot be empty")
+		if len(chain.RPCServer.URL) < 1 {
+			return errors.New("Chains[" + strconv.Itoa(index) + "].RPCServer.URL cannot be empty")
 		}
 
 		if len(chain.CreateAuxBlock.Method) < 1 {

@@ -24,17 +24,17 @@ type AuxBlockInfo struct {
 }
 
 // RPCCall 调用RPC方法
-func RPCCall(serverInfo CoinRPCInfo, method string, params []interface{}) (result interface{}, err error) {
-	client := httpjsonrpc.NewClient(serverInfo.RPCUrl, nil)
-	client.SetBasicAuth(serverInfo.RPCUser, serverInfo.RPCPasswd)
+func RPCCall(server ChainRPCServer, method string, params []interface{}) (result interface{}, err error) {
+	client := httpjsonrpc.NewClient(server.URL, nil)
+	client.SetBasicAuth(server.User, server.Passwd)
 
 	_, err = client.Call(method, params, &result)
 	return
 }
 
 // RPCCallCreateAuxBlock 调用CreateAuxBlock方法
-func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err error) {
-	result, err := RPCCall(rpcInfo, rpcInfo.CreateAuxBlock.Method, rpcInfo.CreateAuxBlock.Params)
+func RPCCallCreateAuxBlock(rpcInfo ChainRPCInfo) (auxBlockInfo AuxBlockInfo, err error) {
+	result, err := RPCCall(rpcInfo.RPCServer, rpcInfo.CreateAuxBlock.Method, rpcInfo.CreateAuxBlock.Params)
 	if err != nil {
 		return
 	}
