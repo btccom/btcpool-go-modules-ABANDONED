@@ -7,7 +7,6 @@ import (
 	"./hash"
 
 	"github.com/GeertJohan/go.httpjsonrpc"
-	"github.com/golang/glog"
 )
 
 // AuxBlockInfo 合并挖矿的区块信息
@@ -25,17 +24,17 @@ type AuxBlockInfo struct {
 }
 
 // RPCCall 调用RPC方法
-func RPCCall(serverInfo CoinRPCInfo, methodInfo RPCMethodInfo) (result interface{}, err error) {
+func RPCCall(serverInfo CoinRPCInfo, method string, params []interface{}) (result interface{}, err error) {
 	client := httpjsonrpc.NewClient(serverInfo.RPCUrl, nil)
 	client.SetBasicAuth(serverInfo.RPCUser, serverInfo.RPCPasswd)
 
-	_, err = client.Call(methodInfo.Method, methodInfo.Params, &result)
+	_, err = client.Call(method, params, &result)
 	return
 }
 
 // RPCCallCreateAuxBlock 调用CreateAuxBlock方法
 func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err error) {
-	result, err := RPCCall(rpcInfo, rpcInfo.CreateAuxBlock)
+	result, err := RPCCall(rpcInfo, rpcInfo.CreateAuxBlock.Method, rpcInfo.CreateAuxBlock.Params)
 	if err != nil {
 		return
 	}
@@ -49,12 +48,7 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 
 	// ------------ Hash ------------
 
-	hashKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["Hash"]
-	if !ok {
-		err = errors.New("config: missing CreateAuxBlock.ResponseKeys.Hash")
-		return
-	}
-
+	hashKey := rpcInfo.CreateAuxBlock.ResponseKeys.Hash
 	hash, ok := auxBlockInfo.RPCRawResult[hashKey]
 	if !ok {
 		err = errors.New("rpc result: missing " + hashKey)
@@ -82,34 +76,28 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 	auxBlockInfo.Hash.Reverse()
 
 	// ------------ ChainID ------------
-	chainIDKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["ChainID"]
-	if !ok {
-		err = errors.New("config: missing CreateAuxBlock.ResponseKeys.ChainID")
-		return
-	}
+	chainIDKey := rpcInfo.CreateAuxBlock.ResponseKeys.ChainID
+	if len(chainIDKey) < 1 {
+		auxBlockInfo.ChainID = rpcInfo.ChainID
+	} else {
+		chainID, ok := auxBlockInfo.RPCRawResult[chainIDKey]
+		if !ok {
+			err = errors.New("rpc result: missing " + chainIDKey)
+			return
+		}
 
-	chainID, ok := auxBlockInfo.RPCRawResult[chainIDKey]
-	if !ok {
-		err = errors.New("rpc result: missing " + chainIDKey)
-		return
-	}
+		chainIDFloat, ok := chainID.(float64)
+		if !ok {
+			err = errors.New("rpc result: " + chainIDKey + " is not a number")
+			return
+		}
 
-	chainIDFloat, ok := chainID.(float64)
-	if !ok {
-		err = errors.New("rpc result: " + chainIDKey + " is not a number")
-		return
+		auxBlockInfo.ChainID = uint32(chainIDFloat)
 	}
-
-	auxBlockInfo.ChainID = uint32(chainIDFloat)
 
 	// ------------ Bits ------------
 
-	bitsKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["Bits"]
-	if !ok {
-		err = errors.New("config: missing CreateAuxBlock.ResponseKeys.Bits")
-		return
-	}
-
+	bitsKey := rpcInfo.CreateAuxBlock.ResponseKeys.Bits
 	bits, ok := auxBlockInfo.RPCRawResult[bitsKey]
 	if !ok {
 		err = errors.New("rpc result: missing " + bitsKey)
@@ -124,12 +112,7 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 
 	// ------------ Target ------------
 
-	targetKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["Target"]
-	if !ok {
-		err = errors.New("config: missing CreateAuxBlock.ResponseKeys.Target")
-		return
-	}
-
+	targetKey := rpcInfo.CreateAuxBlock.ResponseKeys.Target
 	target, ok := auxBlockInfo.RPCRawResult[targetKey]
 	if !ok {
 		err = errors.New("rpc result: missing " + targetKey)
@@ -158,10 +141,8 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 
 	// ------------ Height ------------
 
-	heightKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["Height"]
-	if !ok {
-		glog.Info("config: missing (optional) CreateAuxBlock.ResponseKeys.Bits, skip")
-	} else {
+	heightKey := rpcInfo.CreateAuxBlock.ResponseKeys.Height
+	if len(heightKey) >= 1 {
 		height, ok := auxBlockInfo.RPCRawResult[heightKey]
 		if !ok {
 			err = errors.New("rpc result: missing " + heightKey)
@@ -178,10 +159,8 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 
 	// ------------ PrevBlockHash ------------
 
-	prevBlockHashKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["PrevBlockHash"]
-	if !ok {
-		glog.Info("config: missing (optional) CreateAuxBlock.ResponseKeys.PrevBlockHash, skip")
-	} else {
+	prevBlockHashKey := rpcInfo.CreateAuxBlock.ResponseKeys.PrevBlockHash
+	if len(prevBlockHashKey) >= 1 {
 		prevBlockHash, ok := auxBlockInfo.RPCRawResult[prevBlockHashKey]
 		if !ok {
 			err = errors.New("rpc result: missing " + prevBlockHashKey)
@@ -210,10 +189,8 @@ func RPCCallCreateAuxBlock(rpcInfo CoinRPCInfo) (auxBlockInfo AuxBlockInfo, err 
 	}
 
 	// ------------ CoinbaseValue ------------
-	coinbaseValueKey, ok := rpcInfo.CreateAuxBlock.ResponseKeys["CoinbaseValue"]
-	if !ok {
-		glog.Info("config: missing (optional) CreateAuxBlock.ResponseKeys.CoinbaseValue, skip")
-	} else {
+	coinbaseValueKey := rpcInfo.CreateAuxBlock.ResponseKeys.CoinbaseValue
+	if len(coinbaseValueKey) >= 1 {
 
 		coinbaseValue, ok := auxBlockInfo.RPCRawResult[coinbaseValueKey]
 		if !ok {
