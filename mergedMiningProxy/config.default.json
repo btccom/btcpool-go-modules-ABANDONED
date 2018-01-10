@@ -6,7 +6,7 @@
     },
     "AuxJobMaker": {
         "CreateAuxBlockIntervalSeconds": 5,
-        "AuxPowJobListSize": 100
+        "AuxPowJobListSize": 1000
     },
     "Chains": [
         {
