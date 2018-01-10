@@ -14,11 +14,10 @@ func getChainSlot(chainID uint32, merkleSize uint32, merkleNonce uint32) (slotNu
 	return
 }
 
-func assignChainSlots(chainIDs []uint32) (merkleSize uint32, chainIndex map[uint32]uint32, slotIndex map[uint32]uint32) {
-	chainIndex = make(map[uint32]uint32)
-	slotIndex = make(map[uint32]uint32)
+func assignChainSlots(chainIDs []uint32) (merkleNonce uint32, merkleSize uint32, chainIDIndexSlots map[uint32]uint32, slotIndexChainIDs map[uint32]uint32) {
+	chainIDIndexSlots = make(map[uint32]uint32)
+	slotIndexChainIDs = make(map[uint32]uint32)
 
-	var merkleNonce uint32
 	var chainSize uint32
 	var slotConflict bool
 
@@ -28,7 +27,7 @@ func assignChainSlots(chainIDs []uint32) (merkleSize uint32, chainIndex map[uint
 		merkleSize *= 2
 	}
 
-	glog.Info("assign chain slots. merkleSize: ", merkleSize)
+	glog.Info("[assignChainSlots] init merkleSize: ", merkleSize)
 
 	slotConflict = true
 	for retryTimes := 1; slotConflict; retryTimes++ {
@@ -38,26 +37,26 @@ func assignChainSlots(chainIDs []uint32) (merkleSize uint32, chainIndex map[uint
 		for _, chainID := range chainIDs {
 			slot := getChainSlot(chainID, merkleSize, merkleNonce)
 
-			if conflictedChainID, ok := slotIndex[slot]; ok {
-				glog.Info("slot conflicted: chain ", conflictedChainID, " and ", chainID, " got the same slot ", slot)
+			if conflictedChainID, ok := slotIndexChainIDs[slot]; ok {
+				glog.Info("[assignChainSlots] slot conflicted: chain ", conflictedChainID, " and ", chainID, " got the same slot ", slot)
 
 				slotConflict = true
 				// clear maps
-				chainIndex = make(map[uint32]uint32)
-				slotIndex = make(map[uint32]uint32)
+				chainIDIndexSlots = make(map[uint32]uint32)
+				slotIndexChainIDs = make(map[uint32]uint32)
 
 				// retry too many times, increase the merkle size
 				if retryTimes >= 5 {
 					retryTimes = 0
 					merkleSize *= 2
-					glog.Info("merkleSize increased to ", merkleSize)
+					glog.Info("[assignChainSlots] merkleSize increased to ", merkleSize)
 				}
 
 				break
 			}
 
-			slotIndex[slot] = chainID
-			chainIndex[chainID] = slot
+			slotIndexChainIDs[slot] = chainID
+			chainIDIndexSlots[chainID] = slot
 		}
 	}
 
