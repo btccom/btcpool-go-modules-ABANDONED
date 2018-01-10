@@ -17,7 +17,7 @@ type AuxBlockInfo struct {
 	Target        hash.Byte32
 	Height        uint32
 	PrevBlockHash hash.Byte32
-	CoinbaseValue uint32
+	CoinbaseValue uint64
 
 	// RPCRawResult RPC返回的原始结果
 	RPCRawResult map[string]interface{}
@@ -204,7 +204,7 @@ func RPCCallCreateAuxBlock(rpcInfo ChainRPCInfo) (auxBlockInfo AuxBlockInfo, err
 			return
 		}
 
-		auxBlockInfo.CoinbaseValue = uint32(coinbaseValueFloat)
+		auxBlockInfo.CoinbaseValue = uint64(coinbaseValueFloat)
 	}
 
 	// ------------ Finished ------------

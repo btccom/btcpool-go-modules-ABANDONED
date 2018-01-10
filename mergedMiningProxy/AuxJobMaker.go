@@ -29,6 +29,11 @@ type AuxPowJob struct {
 	MerkleNonce uint32
 
 	AuxPows []AuxPowInfo
+
+	// padding to RPC response
+	PrevBlockHash hash.Byte32
+	CoinbaseValue uint64
+	Height        uint32
 }
 
 // AuxJobMaker 辅助挖矿任务生成器
@@ -68,6 +73,8 @@ func (maker *AuxJobMaker) GetAuxJob() (job AuxPowJob, err error) {
 	}
 
 	maker.lock.Lock()
+	defer maker.lock.Unlock()
+
 	maker.auxPowJobs[job.MerkleRoot] = job
 	maker.auxPowJobIndex.PushBack(job.MerkleRoot)
 
@@ -148,6 +155,10 @@ func (maker *AuxJobMaker) makeAuxJob() (job AuxPowJob, err error) {
 	// set default value of Bits and Target
 	job.MinBits = maker.currentAuxBlocks[0].Bits
 	job.MinTarget = maker.currentAuxBlocks[0].Target
+	// set fields that padding to response
+	job.PrevBlockHash = maker.currentAuxBlocks[0].PrevBlockHash
+	job.Height = maker.currentAuxBlocks[0].Height
+	job.CoinbaseValue = maker.currentAuxBlocks[0].CoinbaseValue
 
 	bottomRow := make(merkle.Row, maker.merkleSize)
 
