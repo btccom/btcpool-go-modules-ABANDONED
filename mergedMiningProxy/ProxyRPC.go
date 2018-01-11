@@ -11,26 +11,6 @@ import (
 	"github.com/golang/glog"
 )
 
-// RPCRequest RPC请求
-type RPCRequest struct {
-	ID     interface{}   `json:"id"`
-	Method string        `json:"method"`
-	Params []interface{} `json:"params"`
-}
-
-// RPCResponse RPC响应
-type RPCResponse struct {
-	ID     interface{} `json:"id"`
-	Result interface{} `json:"result"`
-	Error  interface{} `json:"error"`
-}
-
-// RPCError RPC错误
-type RPCError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
 // RPCResultCreateAuxBlock RPC方法createauxblock的返回结果
 type RPCResultCreateAuxBlock struct {
 	Hash          string `json:"hash"`
@@ -217,14 +197,14 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 					}
 				}
 
-				result, err := RPCCall(chain.RPCServer, chain.SubmitAuxBlock.Method, params)
+				response, err := RPCCall(chain.RPCServer, chain.SubmitAuxBlock.Method, params)
 
 				glog.Info(
 					"[SubmitAuxBlock] <", handle.auxJobMaker.chains[index].Name, "> ",
 					", height: ", extAuxPow.Height,
 					", parentBlockHash: ", auxPowData.blockHash.Hex(),
 					", target: ", extAuxPow.Target.Hex(),
-					", result: ", result,
+					", response: ", string(response),
 					", errmsg: ", err)
 
 			}(index, hashHex, *auxPowData, extAuxPow)
