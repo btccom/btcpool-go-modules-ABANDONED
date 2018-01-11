@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"strings"
 
+	"./hash"
 	"github.com/golang/glog"
 )
 
@@ -160,7 +162,84 @@ func (handle *ProxyRPCHandle) createAuxBlock(response *RPCResponse) {
 }
 
 func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPCResponse) {
+	if len(params) < 2 {
+		response.Error = RPCError{400, "The number of params should be 2"}
+		return
+	}
 
+	hashHex, ok := params[0].(string)
+	if !ok {
+		response.Error = RPCError{400, "The param 1 should be a string"}
+		return
+	}
+
+	auxPowHex, ok := params[1].(string)
+	if !ok {
+		response.Error = RPCError{400, "The param 2 should be a string"}
+		return
+	}
+
+	auxPowData, err := ParseAuxPowData(auxPowHex)
+	if err != nil {
+		response.Error = RPCError{400, err.Error()}
+		return
+	}
+
+	hash, err := hash.MakeByte32FromHex(hashHex)
+	if err != nil {
+		response.Error = RPCError{400, err.Error()}
+		return
+	}
+
+	hash.Reverse()
+	job, err := handle.auxJobMaker.FindAuxJob(hash)
+	if err != nil {
+		response.Error = RPCError{400, err.Error()}
+		return
+	}
+
+	count := 0
+	for index, extAuxPow := range job.AuxPows {
+		// target reached
+		if auxPowData.blockHash.Hex() <= extAuxPow.Target.Hex() {
+
+			go func(index int, hashHex string, auxPowData AuxPowData, extAuxPow AuxPowInfo) {
+
+				chain := handle.auxJobMaker.chains[index]
+				auxPowData.ExpandingBlockchainBranch(extAuxPow.BlockchainBranch)
+				auxPowHex := auxPowData.ToHex()
+
+				params := chain.SubmitAuxBlock.Params
+				for i := range params {
+					if str, ok := params[i].(string); ok {
+						str = strings.Replace(str, "{hash-hex}", hashHex, -1)
+						str = strings.Replace(str, "{aux-pow-hex}", auxPowHex, -1)
+					}
+				}
+
+				result, err := RPCCall(chain.RPCServer, chain.SubmitAuxBlock.Method, params)
+
+				glog.Info(
+					"<", handle.auxJobMaker.chains[index].Name, "> [SubmitAuxBlock] ",
+					", height: ", extAuxPow.Height,
+					", parentBlockHash: ", auxPowData.blockHash.Hex(),
+					", target: ", extAuxPow.Target.Hex(),
+					", result: ", result,
+					", errmsg: ", err)
+
+			}(index, hashHex, *auxPowData, extAuxPow)
+
+			count++
+		}
+	}
+
+	if count < 1 {
+		response.Error = RPCError{400, "high-diff"}
+		return
+	}
+
+	response.Result = true
+	return
 }
 
 func runHTTPServer(config ProxyRPCServer, auxJobMaker *AuxJobMaker) {

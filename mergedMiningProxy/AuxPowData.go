@@ -45,6 +45,11 @@ func ParseAuxPowData(dataHex string) (auxPowData *AuxPowData, err error) {
 		return
 	}
 
+	if len(data) <= 80 {
+		err = errors.New("AuxPowData should be more than 80 bytes")
+		return
+	}
+
 	// 80 bytes of parent block header
 	auxPowData.parentBlock = make([]byte, 80)
 	copy(auxPowData.parentBlock, data[len(data)-80:])

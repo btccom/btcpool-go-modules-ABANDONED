@@ -15,6 +15,7 @@ import (
 // AuxPowInfo 辅助工作量证明的信息
 // @see <https://en.bitcoin.it/wiki/Merged_mining_specification#Aux_proof-of-work_block>
 type AuxPowInfo struct {
+	Height           uint32
 	Target           hash.Byte32
 	BlockchainBranch merkle.MerklePath
 }
@@ -177,6 +178,7 @@ func (maker *AuxJobMaker) makeAuxJob() (job AuxPowJob, err error) {
 
 	for index, block := range maker.currentAuxBlocks {
 		slot := int(maker.chainIDIndexSlots[block.ChainID])
+		job.AuxPows[index].Height = block.Height
 		job.AuxPows[index].Target = block.Target
 		job.AuxPows[index].BlockchainBranch = merkleTree.MerklePathForLeaf(slot)
 	}

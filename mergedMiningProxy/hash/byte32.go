@@ -1,9 +1,20 @@
 package hash
 
+import (
+	"encoding/hex"
+)
+
 // Byte32 is a type that provides a cute way of expressing this trivial
 // fixed size array type, and is useful because the type is often used in
 // slices, and it prevents a forest of square brackets when that is done.
 type Byte32 [32]byte
+
+// MakeByte32FromHex 从hex字符串初始化
+func MakeByte32FromHex(hexStr string) (data Byte32, err error) {
+	bytes, err := hex.DecodeString(hexStr)
+	data.Assign(bytes)
+	return
+}
 
 // Assign 赋值
 func (data *Byte32) Assign(value []byte) {

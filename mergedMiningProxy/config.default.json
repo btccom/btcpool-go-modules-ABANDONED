@@ -32,8 +32,8 @@
             "SubmitAuxBlock": {
                 "Method": "getauxblock",
                 "Params": [
-                    "{coinbase-hex}",
-                    "{branch-length-hex}{branch-hash-hex}{branch-side-mask-hex}"
+                    "{hash-hex}",
+                    "{aux-pow-hex}"
                 ]
             }
         },
@@ -41,7 +41,7 @@
             "ChainID": 2,
             "Name": "Namecoin Testnet",
             "RPCServer":{
-                "URL": "http://127.0.0.1:18444/",
+                "URL": "http://127.0.0.1:48444/",
                 "User": "test",
                 "Passwd": "123"
             },
@@ -53,6 +53,13 @@
                     "Bits": "bits",
                     "Target": "_target"
                 }
+            },
+            "SubmitAuxBlock": {
+                "Method": "getauxblock",
+                "Params": [
+                    "{hash-hex}",
+                    "{aux-pow-hex}"
+                ]
             }
         }
     ]
