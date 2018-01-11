@@ -3,7 +3,7 @@ package merkle
 import (
 	"math"
 
-	"hash"
+	"merkle-tree-and-bitcoin/hash"
 )
 
 // MerkleTree is our implementation of a Merkle Tree. It comprises simply a

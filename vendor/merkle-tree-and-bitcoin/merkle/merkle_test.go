@@ -3,7 +3,7 @@ package merkle
 import (
 	"testing"
 
-	"hash"
+	"merkle-tree-and-bitcoin/hash"
 )
 
 /*
