@@ -8,8 +8,8 @@ import (
 
 	"github.com/golang/glog"
 
-	"./hash"
-	"./merkle"
+	"hash"
+	"merkle"
 )
 
 // AuxPowInfo 辅助工作量证明的信息

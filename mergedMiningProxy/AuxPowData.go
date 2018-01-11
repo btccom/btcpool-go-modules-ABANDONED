@@ -7,8 +7,8 @@ import (
 	"errors"
 	"strconv"
 
-	"./hash"
-	"./merkle"
+	"hash"
+	"merkle"
 )
 
 // AuxMerkleBranch 合并挖矿的 Merkle Branch

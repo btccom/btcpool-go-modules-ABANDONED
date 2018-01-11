@@ -3,7 +3,7 @@ package merkle
 import (
 	"testing"
 
-	"../hash"
+	"hash"
 )
 
 /*

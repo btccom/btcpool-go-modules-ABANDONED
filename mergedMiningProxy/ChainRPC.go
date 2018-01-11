@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"./hash"
+	"hash"
 )
 
 // AuxBlockInfo 合并挖矿的区块信息

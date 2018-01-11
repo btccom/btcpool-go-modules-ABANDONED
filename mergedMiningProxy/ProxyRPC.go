@@ -7,7 +7,8 @@ import (
 	"net/http"
 	"strings"
 
-	"./hash"
+	"hash"
+
 	"github.com/golang/glog"
 )
 
