@@ -110,7 +110,7 @@ func (maker *AuxJobMaker) updateAuxBlock(index int) {
 	maker.lock.Unlock()
 
 	if glog.V(3) {
-		glog.Info("<", chain.Name, "> height:", auxBlockInfo.Height, ", bits:", auxBlockInfo.Bits, ", target:", auxBlockInfo.Target.Hex(),
+		glog.Info("[UpdateAuxBlock] <", chain.Name, "> height:", auxBlockInfo.Height, ", bits:", auxBlockInfo.Bits, ", target:", auxBlockInfo.Target.Hex(),
 			", coinbaseValue:", auxBlockInfo.CoinbaseValue, ", hash:", auxBlockInfo.Hash.Hex(), ", prevHash:", auxBlockInfo.PrevBlockHash.Hex())
 	}
 }
@@ -146,7 +146,7 @@ func (maker *AuxJobMaker) makeAuxJob() (job AuxPowJob, err error) {
 		}
 
 		maker.merkleNonce, maker.merkleSize, maker.chainIDIndexSlots, _ = assignChainSlots(chainIDs)
-		glog.Info("[assignChainSlots] merkleNonce: ", maker.merkleNonce, ", merkleSize: ", maker.merkleSize,
+		glog.Info("[AssignChainSlots] merkleNonce: ", maker.merkleNonce, ", merkleSize: ", maker.merkleSize,
 			", chainIDIndexSlots: ", maker.chainIDIndexSlots)
 	}
 

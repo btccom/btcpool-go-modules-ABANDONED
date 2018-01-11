@@ -154,7 +154,7 @@ func (handle *ProxyRPCHandle) createAuxBlock(response *RPCResponse) {
 	result.PrevBlockHash = job.PrevBlockHash.Hex()
 	result.Target = job.MinTarget.Hex()
 
-	glog.Info("[createAuxBlock] height:", result.Height, ", bits:", result.Bits, ", target:", result.Target,
+	glog.Info("[CreateAuxBlock] height:", result.Height, ", bits:", result.Bits, ", target:", result.Target,
 		", coinbaseValue:", result.CoinbaseValue, ", hash:", result.Hash, ", prevHash:", result.PrevBlockHash)
 
 	response.Result = result
@@ -220,7 +220,7 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 				result, err := RPCCall(chain.RPCServer, chain.SubmitAuxBlock.Method, params)
 
 				glog.Info(
-					"<", handle.auxJobMaker.chains[index].Name, "> [SubmitAuxBlock] ",
+					"[SubmitAuxBlock] <", handle.auxJobMaker.chains[index].Name, "> ",
 					", height: ", extAuxPow.Height,
 					", parentBlockHash: ", auxPowData.blockHash.Hex(),
 					", target: ", extAuxPow.Target.Hex(),
