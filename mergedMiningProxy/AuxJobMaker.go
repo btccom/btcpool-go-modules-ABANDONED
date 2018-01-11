@@ -76,6 +76,14 @@ func (maker *AuxJobMaker) GetAuxJob() (job AuxPowJob, err error) {
 	maker.lock.Lock()
 	defer maker.lock.Unlock()
 
+	_, exists := maker.auxPowJobs[job.MerkleRoot]
+	if exists {
+		if glog.V(2) {
+			glog.Info("[GetAuxJob] job not changed")
+		}
+		return
+	}
+
 	maker.auxPowJobs[job.MerkleRoot] = job
 	maker.auxPowJobIndex.PushBack(job.MerkleRoot)
 
