@@ -109,8 +109,17 @@ func (handle *ProxyRPCHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 			handle.createAuxBlock(&response)
 		}
 	default:
-		writeError(w, request.ID, 404, "Method not found")
-		return
+		// 将未知方法转发给第一个chain的server
+		responseJSON, err := RPCCall(handle.auxJobMaker.chains[0].RPCServer, request.Method, request.Params)
+		if err != nil {
+			writeError(w, nil, 400, err.Error())
+			return
+		}
+		response, err = ParseRPCResponse(responseJSON)
+		if err != nil {
+			writeError(w, nil, 400, err.Error())
+			return
+		}
 	}
 
 	write(w, response)
