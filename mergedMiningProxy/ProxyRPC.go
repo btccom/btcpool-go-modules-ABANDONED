@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"hash"
+	"merkle-tree-and-bitcoin/hash"
 
 	"github.com/golang/glog"
 )

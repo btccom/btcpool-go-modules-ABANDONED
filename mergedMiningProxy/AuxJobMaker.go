@@ -8,8 +8,8 @@ import (
 
 	"github.com/golang/glog"
 
-	"hash"
-	"merkle"
+	"merkle-tree-and-bitcoin/hash"
+	"merkle-tree-and-bitcoin/merkle"
 )
 
 // AuxPowInfo 辅助工作量证明的信息

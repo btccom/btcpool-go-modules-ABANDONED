@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	"hash"
+	"merkle-tree-and-bitcoin/hash"
 )
 
 // AuxBlockInfo 合并挖矿的区块信息
