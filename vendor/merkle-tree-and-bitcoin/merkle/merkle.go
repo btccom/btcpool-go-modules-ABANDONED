@@ -46,12 +46,12 @@ func NewMerkleTree(bottomRow Row) (tree MerkleTree) {
 	tree.rows = append(tree.rows, bottomRow)
 	rowBeneath := bottomRow
 	for {
-		rowAbove := makeRowAbove(rowBeneath)
-		tree.rows = append(tree.rows, rowAbove)
-		rowBeneath = rowAbove
 		if tree.isComplete() {
 			break
 		}
+		rowAbove := makeRowAbove(rowBeneath)
+		tree.rows = append(tree.rows, rowAbove)
+		rowBeneath = rowAbove
 	}
 	return
 }
