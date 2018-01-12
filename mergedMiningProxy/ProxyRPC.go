@@ -120,6 +120,17 @@ func (handle *ProxyRPCHandle) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 			writeError(w, nil, 400, err.Error())
 			return
 		}
+		// 若调用的是help方法，则在结果后面追加对 createauxblock 和 submitauxblock 的描述
+		if request.Method == "help" && len(request.Params) == 0 {
+			helpStr, ok := response.Result.(string)
+			if ok {
+				helpStr += "\n\n== Merged Mining Proxy ==\n" +
+					"createauxblock <address>\n" +
+					"submitauxblock <hash> <auxpow>\n" +
+					"getauxblock (hash auxpow)"
+				response.Result = helpStr
+			}
+		}
 	}
 
 	write(w, response)
