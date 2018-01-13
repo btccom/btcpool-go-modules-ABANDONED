@@ -216,7 +216,12 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 				auxPowData.ExpandingBlockchainBranch(extAuxPow.BlockchainBranch)
 				auxPowHex := auxPowData.ToHex()
 
-				params := chain.SubmitAuxBlock.Params
+				// 切片是对原字符串的引用
+				// 对切片中字符串的修改会直接改变 chain.SubmitAuxBlock.Params 中的值
+				// 所以这里拷贝一份
+				params := make([]interface{}, len(chain.SubmitAuxBlock.Params))
+				copy(params, chain.SubmitAuxBlock.Params)
+
 				for i := range params {
 					if str, ok := params[i].(string); ok {
 						str = strings.Replace(str, "{hash-hex}", extAuxPow.Hash.Hex(), -1)
@@ -230,6 +235,7 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 				glog.Info(
 					"[SubmitAuxBlock] <", handle.auxJobMaker.chains[index].Name, "> ",
 					", height: ", extAuxPow.Height,
+					", hash: ", extAuxPow.Hash.Hex(),
 					", parentBlockHash: ", auxPowData.blockHash.Hex(),
 					", target: ", extAuxPow.Target.Hex(),
 					", response: ", string(response),
