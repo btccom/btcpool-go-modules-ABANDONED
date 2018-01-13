@@ -237,7 +237,6 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 						str = strings.Replace(str, "{hash-hex}", extAuxPow.Hash.Hex(), -1)
 						str = strings.Replace(str, "{aux-pow-hex}", auxPowHex, -1)
 						params[i] = str
-						glog.Info("params[i]: ", str)
 					}
 				}
 

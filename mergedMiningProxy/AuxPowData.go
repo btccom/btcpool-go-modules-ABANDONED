@@ -141,7 +141,7 @@ func (auxPowData *AuxPowData) ExpandingBlockchainBranch(extBranch merkle.MerkleP
 	extBranchItems := make([]hash.Byte32, extBranchLen)
 	for i := uint(0); i < extBranchLen; i++ {
 		extBranchItems[i] = extBranch[i].Hash
-		if !extBranch[i].UseFirstInConcatenation {
+		if extBranch[i].UseFirstInConcatenation {
 			branch.sideMask = branch.sideMask | (uint32(1) << i)
 		}
 	}
