@@ -21,6 +21,8 @@ type RPCResultCreateAuxBlock struct {
 	Bits          string `json:"bits"`
 	Height        uint32 `json:"height"`
 	Target        string `json:"_target"`
+	MerkleSize    uint32 `json:"merkle_size"`
+	MerkleNonce   uint32 `json:"merkle_nonce"`
 }
 
 // write 输出JSON-RPC格式的信息
@@ -154,13 +156,21 @@ func (handle *ProxyRPCHandle) createAuxBlock(response *RPCResponse) {
 	result.Height = job.Height
 	result.PrevBlockHash = job.PrevBlockHash.Hex()
 	result.Target = job.MinTarget.Hex()
+	result.MerkleSize = job.MerkleSize
+	result.MerkleNonce = job.MerkleNonce
 
 	// Reverse for display
 	job.MerkleRoot.Reverse()
 	job.MinTarget.Reverse()
 
-	glog.Info("[CreateAuxBlock] height:", result.Height, ", bits:", result.Bits, ", target:", job.MinTarget.Hex(),
-		", coinbaseValue:", result.CoinbaseValue, ", hash:", job.MerkleRoot.Hex(), ", prevHash:", result.PrevBlockHash)
+	glog.Info("[CreateAuxBlock] height:", result.Height,
+		", bits:", result.Bits,
+		", target:", job.MinTarget.Hex(),
+		", coinbaseValue:", result.CoinbaseValue,
+		", hash:", job.MerkleRoot.Hex(),
+		", prevHash:", result.PrevBlockHash,
+		", merkleSize: ", job.MerkleSize,
+		", merkleNonce: ", job.MerkleNonce)
 
 	response.Result = result
 	return
@@ -227,6 +237,7 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 						str = strings.Replace(str, "{hash-hex}", extAuxPow.Hash.Hex(), -1)
 						str = strings.Replace(str, "{aux-pow-hex}", auxPowHex, -1)
 						params[i] = str
+						glog.Info("params[i]: ", str)
 					}
 				}
 
