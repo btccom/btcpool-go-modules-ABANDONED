@@ -30,6 +30,9 @@ const readSubscribeResponseTimeoutSeconds = 10
 // 因此设置接收超时时间，每隔一定时间就放弃接收，检查状态，并重新开始接收
 const receiveMessageTimeoutSeconds = 15
 
+// 创建的 bufio Reader 的 buffer 大小
+const bufioReaderBufSize = 128
+
 // ProtocolType 代理的协议类型
 type ProtocolType int
 
@@ -87,7 +90,7 @@ func NewStratumSession(manager *StratumSessionManager, clientConn net.Conn, sess
 	session.sessionID = sessionID
 
 	session.clientConn = clientConn
-	session.clientReader = bufio.NewReader(clientConn)
+	session.clientReader = bufio.NewReaderSize(clientConn, bufioReaderBufSize)
 
 	session.clientIPPort = clientConn.RemoteAddr().String()
 	session.sessionIDString = Uint32ToHex(session.sessionID)
@@ -143,7 +146,7 @@ func (session *StratumSession) Resume(sessionData StratumSessionData, serverConn
 
 	// 恢复服务器连接
 	session.serverConn = serverConn
-	session.serverReader = bufio.NewReader(serverConn)
+	session.serverReader = bufio.NewReaderSize(serverConn, bufioReaderBufSize)
 
 	_, stratumErr := session.parseSubscribeRequest(sessionData.StratumSubscribeRequest)
 	if stratumErr != nil {
@@ -455,7 +458,7 @@ func (session *StratumSession) connectStratumServer() error {
 	glog.V(3).Info("Connect Stratum Server Success: ", session.miningCoin, "; ", serverInfo.URL)
 
 	session.serverConn = serverConn
-	session.serverReader = bufio.NewReader(serverConn)
+	session.serverReader = bufio.NewReaderSize(serverConn, bufioReaderBufSize)
 
 	// 为请求添加sessionID
 	// API格式：mining.subscribe("user agent/version", "extranonce1")
