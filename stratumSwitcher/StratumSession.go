@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"errors"
+	"io"
 	"net"
 	"strings"
 	"sync"
@@ -51,14 +52,12 @@ type StratumSession struct {
 
 	clientConn   net.Conn
 	clientReader *bufio.Reader
-	clientWriter *bufio.Writer
 
 	// 客户端IP地址及端口
 	clientIPPort string
 
 	serverConn   net.Conn
 	serverReader *bufio.Reader
-	serverWriter *bufio.Writer
 
 	// sessionID 会话ID，也做为矿机挖矿时的 Extranonce1
 	sessionID       uint32
@@ -89,7 +88,6 @@ func NewStratumSession(manager *StratumSessionManager, clientConn net.Conn, sess
 
 	session.clientConn = clientConn
 	session.clientReader = bufio.NewReader(clientConn)
-	session.clientWriter = bufio.NewWriter(clientConn)
 
 	session.clientIPPort = clientConn.RemoteAddr().String()
 	session.sessionIDString = Uint32ToHex(session.sessionID)
@@ -146,7 +144,6 @@ func (session *StratumSession) Resume(sessionData StratumSessionData, serverConn
 	// 恢复服务器连接
 	session.serverConn = serverConn
 	session.serverReader = bufio.NewReader(serverConn)
-	session.serverWriter = bufio.NewWriter(serverConn)
 
 	_, stratumErr := session.parseSubscribeRequest(sessionData.StratumSubscribeRequest)
 	if stratumErr != nil {
@@ -194,16 +191,8 @@ func (session *StratumSession) Stop() {
 	session.isRunning = false
 	session.lock.Unlock()
 
-	if session.serverWriter != nil {
-		session.serverWriter.Flush()
-	}
-
 	if session.serverConn != nil {
 		session.serverConn.Close()
-	}
-
-	if session.clientWriter != nil {
-		session.clientWriter.Flush()
 	}
 
 	if session.clientConn != nil {
@@ -467,7 +456,6 @@ func (session *StratumSession) connectStratumServer() error {
 
 	session.serverConn = serverConn
 	session.serverReader = bufio.NewReader(serverConn)
-	session.serverWriter = bufio.NewWriter(serverConn)
 
 	// 为请求添加sessionID
 	// API格式：mining.subscribe("user agent/version", "extranonce1")
@@ -576,14 +564,12 @@ func (session *StratumSession) connectStratumServer() error {
 
 	// 若认证响应不为空，就转发给矿机，无论认证是否成功
 	if authorizeResponseJSON != nil {
-		_, err := session.clientWriter.Write(authorizeResponseJSON)
+		_, err := session.clientConn.Write(authorizeResponseJSON)
 
 		if err != nil {
 			glog.Warning("Write Authorize Response to Client Failed: ", err)
 			return err
 		}
-
-		session.clientWriter.Flush()
 	}
 
 	// 返回认证的结果（若认证失败，则认为连接失败）
@@ -638,14 +624,36 @@ func (session *StratumSession) proxyStratum() {
 
 	// 从服务器到客户端
 	go func() {
-		session.clientWriter.ReadFrom(session.serverReader)
+		bufLen := session.serverReader.Buffered()
+		// 将bufio中的剩余内容写入对端
+		if bufLen > 0 {
+			buf := make([]byte, bufLen)
+			session.serverReader.Read(buf)
+			session.clientConn.Write(buf)
+		}
+		// 释放bufio
+		session.serverReader = nil
+		// 简单的流复制
+		io.Copy(session.clientConn, session.serverConn)
+		// 流复制结束，说明其中一方关闭了连接
 		session.Stop()
 		glog.V(3).Info("DownStream: exited;", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 	}()
 
 	// 从客户端到服务器
 	go func() {
-		session.serverWriter.ReadFrom(session.clientReader)
+		bufLen := session.clientReader.Buffered()
+		// 将bufio中的剩余内容写入对端
+		if bufLen > 0 {
+			buf := make([]byte, bufLen)
+			session.clientReader.Read(buf)
+			session.serverConn.Write(buf)
+		}
+		// 释放bufio
+		session.clientReader = nil
+		// 简单的流复制
+		io.Copy(session.serverConn, session.clientConn)
+		// 流复制结束，说明其中一方关闭了连接
 		session.Stop()
 		glog.V(3).Info("UpStream: exited;", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 	}()
@@ -785,9 +793,8 @@ func (session *StratumSession) writeJSONResponseToClient(jsonData *JSONRPCRespon
 		return 0, err
 	}
 
-	defer session.clientWriter.Flush()
-	defer session.clientWriter.WriteByte('\n')
-	return session.clientWriter.Write(bytes)
+	defer session.clientConn.Write([]byte{'\n'})
+	return session.clientConn.Write(bytes)
 }
 
 func (session *StratumSession) writeJSONRequestToServer(jsonData *JSONRPCRequest) (int, error) {
@@ -797,7 +804,6 @@ func (session *StratumSession) writeJSONRequestToServer(jsonData *JSONRPCRequest
 		return 0, err
 	}
 
-	defer session.serverWriter.Flush()
-	defer session.serverWriter.WriteByte('\n')
-	return session.serverWriter.Write(bytes)
+	defer session.serverConn.Write([]byte{'\n'})
+	return session.serverConn.Write(bytes)
 }
