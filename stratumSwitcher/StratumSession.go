@@ -704,7 +704,8 @@ func (session *StratumSession) proxyStratum() {
 		buffer := make([]byte, bufioReaderBufSize)
 		_, err := IOCopyBuffer(session.clientConn, session.serverConn, buffer)
 		// 流复制结束，说明其中一方关闭了连接
-		if err == ErrReadFailed {
+		// 不对BTCAgent应用重连
+		if err == ErrReadFailed && !session.isBTCAgent {
 			// 服务器关闭了连接，尝试重连
 			session.tryReconnect(currentReconnectCounter)
 		} else {
@@ -729,7 +730,8 @@ func (session *StratumSession) proxyStratum() {
 		buffer := make([]byte, bufioReaderBufSize)
 		bufferLen, err := IOCopyBuffer(session.serverConn, session.clientConn, buffer)
 		// 流复制结束，说明其中一方关闭了连接
-		if err == ErrWriteFailed {
+		// 不对BTCAgent应用重连
+		if err == ErrWriteFailed && !session.isBTCAgent {
 			// 服务器关闭了连接，尝试重连
 			success := session.tryReconnect(currentReconnectCounter)
 			// 已经重连过，尝试将缓存中的内容转发到新服务器
