@@ -32,6 +32,9 @@ const readSubscribeResponseTimeoutSeconds = 10
 // 因此设置接收超时时间，每隔一定时间就放弃接收，检查状态，并重新开始接收
 const receiveMessageTimeoutSeconds = 15
 
+// 服务器断开连接时的重试次数
+const retryTimeWhenServerDown = 5
+
 // 创建的 bufio Reader 的 buffer 大小
 const bufioReaderBufSize = 128
 
@@ -474,15 +477,18 @@ func (session *StratumSession) findMiningCoin() error {
 }
 
 func (session *StratumSession) connectStratumServer() error {
+	// 获取当前运行状态
+	runningStat := session.getStat()
 	// 寻找币种对应的服务器
 	serverInfo, ok := session.manager.stratumServerInfoMap[session.miningCoin]
 
 	// 对应的服务器不存在
 	if !ok {
 		glog.Error("Stratum Server Not Found: ", session.miningCoin)
-
-		response := JSONRPCResponse{nil, nil, StratumErrStratumServerNotFound.ToJSONRPCArray()}
-		session.writeJSONResponseToClient(&response)
+		if runningStat != StatReconnecting {
+			response := JSONRPCResponse{nil, nil, StratumErrStratumServerNotFound.ToJSONRPCArray()}
+			session.writeJSONResponseToClient(&response)
+		}
 		return StratumErrStratumServerNotFound
 	}
 
@@ -491,9 +497,10 @@ func (session *StratumSession) connectStratumServer() error {
 
 	if err != nil {
 		glog.Error("Connect Stratum Server Failed: ", session.miningCoin, "; ", serverInfo.URL, "; ", err)
-
-		response := JSONRPCResponse{nil, nil, StratumErrConnectStratumServerFailed.ToJSONRPCArray()}
-		session.writeJSONResponseToClient(&response)
+		if runningStat != StatReconnecting {
+			response := JSONRPCResponse{nil, nil, StratumErrConnectStratumServerFailed.ToJSONRPCArray()}
+			session.writeJSONResponseToClient(&response)
+		}
 		return StratumErrConnectStratumServerFailed
 	}
 
@@ -617,9 +624,6 @@ func (session *StratumSession) connectStratumServer() error {
 		time.Sleep(time.Duration(3) * time.Second)
 	}
 
-	// 获取当前运行状态
-	runningStat := session.getStat()
-
 	// 若认证响应不为空，就转发给矿机，无论认证是否成功
 	// 在重连服务器时不发送
 	if authorizeResponseJSON != nil && runningStat != StatReconnecting {
@@ -698,13 +702,16 @@ func (session *StratumSession) proxyStratum() {
 		session.serverReader = nil
 		// 简单的流复制
 		buffer := make([]byte, bufioReaderBufSize)
-		IOCopyBuffer(session.clientConn, session.serverConn, buffer)
+		_, err := IOCopyBuffer(session.clientConn, session.serverConn, buffer)
 		// 流复制结束，说明其中一方关闭了连接
-		// 若未发生重连，则停止会话
-		if currentReconnectCounter == session.getReconnectCounter() {
+		if err == ErrReadFailed {
+			// 服务器关闭了连接，尝试重连
+			session.tryReconnect(currentReconnectCounter)
+		} else {
+			// 客户端关闭了连接，结束会话
 			session.Stop()
 		}
-		glog.V(3).Info("DownStream: exited;", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
+		glog.V(3).Info("DownStream: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 	}()
 
 	// 从客户端到服务器
@@ -720,20 +727,25 @@ func (session *StratumSession) proxyStratum() {
 		session.clientReader = nil
 		// 简单的流复制
 		buffer := make([]byte, bufioReaderBufSize)
-		bufferLen, _ := IOCopyBuffer(session.serverConn, session.clientConn, buffer)
+		bufferLen, err := IOCopyBuffer(session.serverConn, session.clientConn, buffer)
 		// 流复制结束，说明其中一方关闭了连接
-		if currentReconnectCounter == session.getReconnectCounter() {
-			// 若未发生重连，停止会话
-			session.Stop()
-		} else {
-			// 若重连已完成，尝试将缓存中的内容转发到新服务器
-			if bufferLen > 0 && session.getStat() == StatRunning {
-				session.serverConn.Write(buffer[0:bufferLen])
+		if err == ErrWriteFailed {
+			// 服务器关闭了连接，尝试重连
+			success := session.tryReconnect(currentReconnectCounter)
+			// 已经重连过，尝试将缓存中的内容转发到新服务器
+			if !success {
+				// 若重连已完成，尝试将缓存中的内容转发到新服务器
+				if bufferLen > 0 && session.getStat() == StatRunning {
+					session.serverConn.Write(buffer[0:bufferLen])
+				}
+				// 重连未完成时，缓存中的数据一定是提交给前一个服务器的，
+				// 可以安全的丢弃。
 			}
-			// 重连未完成时，缓存中的数据一定是提交给前一个服务器的，
-			// 可以安全的丢弃。
+		} else {
+			// 客户端关闭了连接，结束会话
+			session.Stop()
 		}
-		glog.V(3).Info("UpStream: exited;", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
+		glog.V(3).Info("UpStream: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 	}()
 
 	// 监控来自zookeeper的切换指令并进行Stratum切换
@@ -742,6 +754,10 @@ func (session *StratumSession) proxyStratum() {
 			<-session.zkWatchEvent
 
 			if !session.IsRunning() {
+				break
+			}
+
+			if currentReconnectCounter != session.getReconnectCounter() {
 				break
 			}
 
@@ -780,7 +796,7 @@ func (session *StratumSession) proxyStratum() {
 				session.Stop()
 			} else {
 				// 普通连接，直接切换币种
-				go session.switchCoinType(newMiningCoin)
+				session.switchCoinType(newMiningCoin)
 			}
 			break
 		}
@@ -789,24 +805,50 @@ func (session *StratumSession) proxyStratum() {
 	}()
 }
 
+// 检查是否发生了重连，若未发生重连，则尝试重连
+func (session *StratumSession) tryReconnect(currentReconnectCounter uint32) bool {
+	session.lock.Lock()
+	defer session.lock.Unlock()
+
+	// 会话未在运行，不重连
+	if session.runningStat != StatRunning {
+		return false
+	}
+
+	// 判断是否已经重连过
+	if currentReconnectCounter == session.reconnectCounter {
+		//未发生重连，尝试重连
+		// 状态设为“正在重连服务器”，重连计数器加一
+		session.runningStat = StatReconnecting
+		session.reconnectCounter++
+
+		go session.reconnectStratumServer(retryTimeWhenServerDown)
+
+		return true
+	}
+
+	// 已重连，则不进行任何操作
+	return false
+}
+
 func (session *StratumSession) switchCoinType(newMiningCoin string) {
 	// 设置新币种
 	session.miningCoin = newMiningCoin
 
-	// 移除会话注册
-	session.manager.ReleaseStratumSession(session)
-
-	// 重连服务器
-	session.reconnectStratumServer()
-}
-
-// reconnectStratumServer 重连服务器
-func (session *StratumSession) reconnectStratumServer() {
 	// 状态设为“正在重连服务器”，重连计数器加一
 	session.lock.Lock()
 	session.runningStat = StatReconnecting
 	session.reconnectCounter++
 	session.lock.Unlock()
+
+	// 重连服务器
+	go session.reconnectStratumServer(0)
+}
+
+// reconnectStratumServer 重连服务器
+func (session *StratumSession) reconnectStratumServer(retryTime int) {
+	// 移除会话注册
+	session.manager.ReleaseStratumSession(session)
 
 	// 销毁serverReader
 	if session.serverReader != nil {
@@ -830,7 +872,16 @@ func (session *StratumSession) reconnectStratumServer() {
 	}
 
 	// 连接服务器
-	err := session.connectStratumServer()
+	var err error
+	// 至少要尝试一次，所以从-1开始
+	for i := -1; i < retryTime; i++ {
+		err = session.connectStratumServer()
+		if err == nil {
+			break
+		} else {
+			time.Sleep(1 * time.Second)
+		}
+	}
 	if err != nil {
 		session.Stop()
 		return

@@ -78,21 +78,19 @@ func IOCopyBuffer(dst io.Writer, src io.Reader, buf []byte) (bufferLen int, err 
 	for {
 		nr, er := src.Read(buf)
 		bufferLen = nr
-		if bufferLen > 0 {
+		if nr > 0 {
 			nw, ew := dst.Write(buf[0:nr])
 			if ew != nil {
-				err = ew
+				err = ErrWriteFailed
 				break
 			}
 			if nr != nw {
-				err = io.ErrShortWrite
+				err = ErrWriteFailed
 				break
 			}
 		}
 		if er != nil {
-			if er != io.EOF {
-				err = er
-			}
+			err = ErrReadFailed
 			break
 		}
 	}

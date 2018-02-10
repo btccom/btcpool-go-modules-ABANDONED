@@ -65,3 +65,10 @@ var (
 	// StratumErrConnectStratumServerFailed 对应币种的Stratum Server连接失败
 	StratumErrConnectStratumServerFailed = NewStratumError(302, "Connect Stratum Server Failed")
 )
+
+var (
+	// ErrReadFailed IO读错误
+	ErrReadFailed = errors.New("Read Failed")
+	// ErrWriteFailed IO写错误
+	ErrWriteFailed = errors.New("Write Failed")
+)
