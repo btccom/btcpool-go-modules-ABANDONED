@@ -114,8 +114,16 @@ func (manager *StratumSessionManager) RegisterStratumSession(session *StratumSes
 
 // ReleaseStratumSession 释放Stratum会话（在Stratum会话停止时调用）
 func (manager *StratumSessionManager) ReleaseStratumSession(session *StratumSession) {
-	// 删除已注册的会话
 	manager.lock.Lock()
+
+	_, ok := manager.sessions[session.sessionID]
+	if !ok {
+		// 会话未注册，无需释放
+		manager.lock.Unlock()
+		return
+	}
+
+	// 删除已注册的会话
 	delete(manager.sessions, session.sessionID)
 	manager.lock.Unlock()
 	// 释放会话ID
