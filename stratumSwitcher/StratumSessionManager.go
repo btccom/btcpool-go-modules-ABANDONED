@@ -144,12 +144,14 @@ func (manager *StratumSessionManager) Run(runtimeData RuntimeData) {
 
 		// 恢复之前的TCP监听
 		// 可能会恢复失败。若恢复失败，则重新监听。
-		glog.Info("Resume TCP Listener: fd ", runtimeData.TCPListenerFD)
-		manager.tcpListener, err = newListenerFromFd(runtimeData.TCPListenerFD)
+		if runtimeData.TCPListenerFD != 0 {
+			glog.Info("Resume TCP Listener: fd ", runtimeData.TCPListenerFD)
+			manager.tcpListener, err = newListenerFromFd(runtimeData.TCPListenerFD)
 
-		if err != nil {
-			glog.Error("resume failed: ", err)
-			manager.tcpListener = nil
+			if err != nil {
+				glog.Error("resume failed: ", err)
+				manager.tcpListener = nil
+			}
 		}
 	}
 

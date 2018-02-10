@@ -27,11 +27,12 @@ func (upgradable *Upgradable) upgradeStratumSwitcher() (err error) {
 
 	runtimeData.Action = "upgrade"
 
-	runtimeData.TCPListenerFD, err = getListenerFd(upgradable.sessionManager.tcpListener)
+	// 不再尝试恢复TCPListenerFD，而是每次都重新监听
+	/*runtimeData.TCPListenerFD, err = getListenerFd(upgradable.sessionManager.tcpListener)
 	if err != nil {
 		return
 	}
-	setNoCloseOnExec(runtimeData.TCPListenerFD)
+	setNoCloseOnExec(runtimeData.TCPListenerFD)*/
 
 	upgradable.sessionManager.lock.Lock()
 	for _, session := range upgradable.sessionManager.sessions {
@@ -84,6 +85,9 @@ func (upgradable *Upgradable) upgradeStratumSwitcher() (err error) {
 		}
 	}
 	args = append(args, "-runtime="+runtimeFilePath)
+
+	// flush all logs before load the new binary
+	glog.Flush()
 
 	err = execNewBin(os.Args[0], args)
 	return
