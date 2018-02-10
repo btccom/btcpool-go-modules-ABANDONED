@@ -93,20 +93,20 @@ func (manager *SessionIDManager) ResumeSessionID(sessionID uint32) (err error) {
 	defer manager.lock.Unlock()
 	manager.lock.Lock()
 
-	sessionID = sessionID & SessionIDMask
+	idx := sessionID & SessionIDMask
 
-	// find an empty bit
-	if manager.sessionIDs.Test(uint(sessionID)) {
+	// test if the bit be empty
+	if manager.sessionIDs.Test(uint(idx)) {
 		err = ErrSessionIDOccupied
 		return
 	}
 
 	// set to true
-	manager.sessionIDs.Set(uint(sessionID))
+	manager.sessionIDs.Set(uint(idx))
 	manager.count++
 
-	if manager.allocIDx <= sessionID {
-		manager.allocIDx = sessionID + 1
+	if manager.allocIDx <= idx {
+		manager.allocIDx = idx + 1
 	}
 
 	err = nil
@@ -119,6 +119,12 @@ func (manager *SessionIDManager) FreeSessionID(sessionID uint32) {
 	manager.lock.Lock()
 
 	idx := sessionID & SessionIDMask
+
+	if !manager.sessionIDs.Test(uint(idx)) {
+		// ID未分配，无需释放
+		return
+	}
+
 	manager.sessionIDs.Clear(uint(idx))
 	manager.count--
 }
