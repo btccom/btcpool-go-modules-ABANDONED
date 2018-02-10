@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"errors"
-	"io"
 	"net"
 	"strings"
 	"sync"
@@ -125,7 +124,22 @@ func (session *StratumSession) IsRunning() bool {
 	session.lock.Lock()
 	defer session.lock.Unlock()
 
-	return session.runningStat == StatRunning
+	return session.runningStat != StatStoped
+}
+
+// setStat 设置会话状态（线程安全）
+func (session *StratumSession) setStat(stat RunningStat) {
+	session.lock.Lock()
+	session.runningStat = stat
+	session.lock.Unlock()
+}
+
+// getStat 获取会话状态（线程安全）
+func (session *StratumSession) getStat() RunningStat {
+	session.lock.Lock()
+	defer session.lock.Unlock()
+
+	return session.runningStat
 }
 
 // getReconnectCounter 获取币种切换计数（线程安全）
@@ -140,7 +154,7 @@ func (session *StratumSession) getReconnectCounter() uint32 {
 func (session *StratumSession) Run() {
 	session.lock.Lock()
 
-	if session.runningStat == StatRunning {
+	if session.runningStat != StatStoped {
 		session.lock.Unlock()
 		return
 	}
@@ -164,7 +178,7 @@ func (session *StratumSession) Run() {
 func (session *StratumSession) Resume(sessionData StratumSessionData, serverConn net.Conn) {
 	session.lock.Lock()
 
-	if session.runningStat == StatRunning {
+	if session.runningStat != StatStoped {
 		session.lock.Unlock()
 		return
 	}
@@ -214,7 +228,7 @@ func (session *StratumSession) Resume(sessionData StratumSessionData, serverConn
 func (session *StratumSession) Stop() {
 	session.lock.Lock()
 
-	if session.runningStat != StatRunning {
+	if session.runningStat == StatStoped {
 		session.lock.Unlock()
 		return
 	}
@@ -604,9 +618,7 @@ func (session *StratumSession) connectStratumServer() error {
 	}
 
 	// 获取当前运行状态
-	session.lock.Lock()
-	runningStat := session.runningStat
-	session.lock.Unlock()
+	runningStat := session.getStat()
 
 	// 若认证响应不为空，就转发给矿机，无论认证是否成功
 	// 在重连服务器时不发送
@@ -685,7 +697,8 @@ func (session *StratumSession) proxyStratum() {
 		// 释放bufio
 		session.serverReader = nil
 		// 简单的流复制
-		io.Copy(session.clientConn, session.serverConn)
+		buffer := make([]byte, bufioReaderBufSize)
+		IOCopyBuffer(session.clientConn, session.serverConn, buffer)
 		// 流复制结束，说明其中一方关闭了连接
 		// 若未发生重连，则停止会话
 		if currentReconnectCounter == session.getReconnectCounter() {
@@ -706,11 +719,19 @@ func (session *StratumSession) proxyStratum() {
 		// 释放bufio
 		session.clientReader = nil
 		// 简单的流复制
-		io.Copy(session.serverConn, session.clientConn)
+		buffer := make([]byte, bufioReaderBufSize)
+		bufferLen, _ := IOCopyBuffer(session.serverConn, session.clientConn, buffer)
 		// 流复制结束，说明其中一方关闭了连接
-		// 若未发生重连，则停止会话
 		if currentReconnectCounter == session.getReconnectCounter() {
+			// 若未发生重连，停止会话
 			session.Stop()
+		} else {
+			// 若重连已完成，尝试将缓存中的内容转发到新服务器
+			if bufferLen > 0 && session.getStat() == StatRunning {
+				session.serverConn.Write(buffer[0:bufferLen])
+			}
+			// 重连未完成时，缓存中的数据一定是提交给前一个服务器的，
+			// 可以安全的丢弃。
 		}
 		glog.V(3).Info("UpStream: exited;", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 	}()
@@ -811,20 +832,12 @@ func (session *StratumSession) reconnectStratumServer() {
 	// 连接服务器
 	err := session.connectStratumServer()
 	if err != nil {
-		// 改回运行状态
-		// session只有处于运行状态才能被停止
-		session.lock.Lock()
-		session.runningStat = StatRunning
-		session.lock.Unlock()
-
 		session.Stop()
 		return
 	}
 
 	// 回到运行状态
-	session.lock.Lock()
-	session.runningStat = StatRunning
-	session.lock.Unlock()
+	session.setStat(StatRunning)
 
 	// 转入纯代理模式
 	session.proxyStratum()

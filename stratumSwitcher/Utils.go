@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"io"
 	"net"
 	"strconv"
 )
@@ -66,4 +67,34 @@ func SubString(str string, start, length int) string {
 	}
 
 	return string(rs[start:end])
+}
+
+// IOCopyBuffer 在写入失败时还能拿到Buffer的IO拷贝函数
+func IOCopyBuffer(dst io.Writer, src io.Reader, buf []byte) (bufferLen int, err error) {
+	if buf == nil {
+		err = io.ErrShortBuffer
+		return
+	}
+	for {
+		nr, er := src.Read(buf)
+		bufferLen = nr
+		if bufferLen > 0 {
+			nw, ew := dst.Write(buf[0:nr])
+			if ew != nil {
+				err = ew
+				break
+			}
+			if nr != nw {
+				err = io.ErrShortWrite
+				break
+			}
+		}
+		if er != nil {
+			if er != io.EOF {
+				err = er
+			}
+			break
+		}
+	}
+	return
 }
