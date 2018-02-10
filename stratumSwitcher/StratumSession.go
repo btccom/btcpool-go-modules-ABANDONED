@@ -33,7 +33,7 @@ const readSubscribeResponseTimeoutSeconds = 10
 const receiveMessageTimeoutSeconds = 15
 
 // 服务器断开连接时的重试次数
-const retryTimeWhenServerDown = 5
+const retryTimeWhenServerDown = 10
 
 // 创建的 bufio Reader 的 buffer 大小
 const bufioReaderBufSize = 128
