@@ -13,6 +13,9 @@ import (
 	"github.com/samuel/go-zookeeper/zk"
 )
 
+// BTCAgent的客户端类型前缀
+const btcAgentClientTypePrefix = "btccom-agent/"
+
 // BTCAgent的ex-message的magic number
 const btcAgentExMessageMagicNumber = 0x7F
 
@@ -47,6 +50,9 @@ const (
 type StratumSession struct {
 	// 会话管理器
 	manager *StratumSessionManager
+
+	// 是否为BTCAgent
+	isBTCAgent bool
 
 	// 是否在运行
 	isRunning bool
@@ -468,6 +474,10 @@ func (session *StratumSession) connectStratumServer() error {
 	userAgent := "stratumSwitcher"
 	if len(session.stratumSubscribeRequest.Params) >= 1 {
 		userAgent, ok = session.stratumSubscribeRequest.Params[0].(string)
+		// 判断是否为BTCAgent
+		if strings.HasPrefix(strings.ToLower(userAgent), btcAgentClientTypePrefix) {
+			session.isBTCAgent = true
+		}
 	}
 	glog.V(3).Info("UserAgent: ", userAgent)
 
@@ -536,6 +546,12 @@ func (session *StratumSession) connectStratumServer() error {
 	var authSuccess = false
 	// 最后一次尝试的矿机名
 	var authWorkerName string
+	// 矿机的密码，仅用于显示
+	var authWorkerPasswd string
+
+	if len(session.stratumAuthorizeRequest.Params) >= 2 {
+		authWorkerPasswd, _ = session.stratumAuthorizeRequest.Params[1].(string)
+	}
 
 	// 在15秒内多次尝试认证
 	// 之所以要多次认证，是因为第一次创建子账户的时候，Stratum Server不能及时的收到消息。
@@ -582,7 +598,7 @@ func (session *StratumSession) connectStratumServer() error {
 		return ErrAuthorizeFailed
 	}
 
-	glog.Info("Authorize Success: ", session.clientIPPort, "; ", session.miningCoin, "; ", authWorkerName, "; ", userAgent)
+	glog.Info("Authorize Success: ", session.clientIPPort, "; ", session.miningCoin, "; ", authWorkerName, "; ", authWorkerPasswd, "; ", userAgent)
 	return nil
 }
 
