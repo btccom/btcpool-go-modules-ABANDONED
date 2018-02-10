@@ -882,7 +882,7 @@ func (session *StratumSession) switchCoinType(newMiningCoin string) {
 	session.lock.Unlock()
 
 	// 重连服务器
-	go session.reconnectStratumServer(0)
+	go session.reconnectStratumServer(retryTimeWhenServerDown)
 }
 
 // reconnectStratumServer 重连服务器
