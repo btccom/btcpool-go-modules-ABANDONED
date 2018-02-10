@@ -111,7 +111,9 @@ func NewZookeeperManager(brokers []string) (manager *ZookeeperManager, err error
 // removeNodeWatcher 移除监控节点
 func (manager *ZookeeperManager) removeNodeWatcher(watcher *NodeWatcher) {
 	delete(manager.watcherMap, watcher.nodePath)
-	glog.V(3).Info("Zookeeper: release NodeWatcher: ", watcher.nodePath)
+	if glog.V(3) {
+		glog.Info("Zookeeper: release NodeWatcher: ", watcher.nodePath)
+	}
 }
 
 // GetW 获取Zookeeper节点的值并设置监控
@@ -131,14 +133,18 @@ func (manager *ZookeeperManager) GetW(path string, sessionID uint32) (value []by
 		}
 
 		manager.watcherMap[path] = watcher
-		glog.V(3).Info("Zookeeper: add NodeWatcher: ", path)
+		if glog.V(3) {
+			glog.Info("Zookeeper: add NodeWatcher: ", path)
+		}
 
 		defer watcher.Run()
 	}
 
 	eventChan := make(chan zk.Event, 1)
 	watcher.watcherChannels[sessionID] = eventChan
-	glog.V(3).Info("Zookeeper: add WatcherChannel: ", path, "; ", Uint32ToHex(sessionID))
+	if glog.V(3) {
+		glog.Info("Zookeeper: add WatcherChannel: ", path, "; ", Uint32ToHex(sessionID))
+	}
 
 	value = watcher.nodeValue
 	event = eventChan
@@ -164,7 +170,9 @@ func (manager *ZookeeperManager) ReleaseW(path string, sessionID uint32) {
 
 	close(eventChan)
 	delete(watcher.watcherChannels, sessionID)
-	glog.V(3).Info("Zookeeper: release WatcherChannel: ", path, "; ", Uint32ToHex(sessionID))
+	if glog.V(3) {
+		glog.Info("Zookeeper: release WatcherChannel: ", path, "; ", Uint32ToHex(sessionID))
+	}
 
 	// go-zookeeper 的代码显示，它的watcher只会在接收到事件后关闭并释放，
 	// 因此，在此处移除 NodaWatcher 并不能使 go-zookeeper 中的 watcher 释放，

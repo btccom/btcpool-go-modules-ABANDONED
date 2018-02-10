@@ -117,8 +117,9 @@ func NewStratumSession(manager *StratumSessionManager, clientConn net.Conn, sess
 	session.clientIPPort = clientConn.RemoteAddr().String()
 	session.sessionIDString = Uint32ToHex(session.sessionID)
 
-	glog.V(3).Info("IP: ", session.clientIPPort, ", Session ID: ", session.sessionIDString)
-
+	if glog.V(3) {
+		glog.Info("IP: ", session.clientIPPort, ", Session ID: ", session.sessionIDString)
+	}
 	return
 }
 
@@ -250,7 +251,9 @@ func (session *StratumSession) Stop() {
 	session.manager.ReleaseStratumSession(session)
 	session.manager = nil
 
-	glog.V(2).Info("Session Stoped: ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
+	if glog.V(2) {
+		glog.Info("Session Stoped: ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
+	}
 }
 
 func (session *StratumSession) protocolDetect() ProtocolType {
@@ -272,7 +275,9 @@ func (session *StratumSession) protocolDetect() ProtocolType {
 		return ProtocolUnknown
 	}
 
-	glog.V(3).Info("Found Stratum Protocol")
+	if glog.V(3) {
+		glog.Info("Found Stratum Protocol")
+	}
 	return ProtocolStratum
 }
 
@@ -375,7 +380,9 @@ func (session *StratumSession) stratumFindWorkerName() error {
 
 			// ignore the json decode error
 			if err != nil {
-				glog.V(3).Info("JSON decode failed: ", err.Error(), string(requestJSON))
+				if glog.V(3) {
+					glog.Info("JSON decode failed: ", err.Error(), string(requestJSON))
+				}
 				continue
 			}
 
@@ -446,7 +453,9 @@ func (session *StratumSession) stratumFindWorkerName() error {
 			return err
 		}
 
-		glog.V(2).Info("FindWorkerName Success: ", session.fullWorkerName)
+		if glog.V(2) {
+			glog.Info("FindWorkerName Success: ", session.fullWorkerName)
+		}
 		return nil
 
 	case <-time.After(findWorkerNameTimeoutSeconds * time.Second):
@@ -462,8 +471,9 @@ func (session *StratumSession) findMiningCoin() error {
 	data, event, err := session.manager.zookeeperManager.GetW(session.zkWatchPath, session.sessionID)
 
 	if err != nil {
-		glog.V(3).Info("FindMiningCoin Failed: " + session.zkWatchPath + "; " + err.Error())
-
+		if glog.V(3) {
+			glog.Info("FindMiningCoin Failed: " + session.zkWatchPath + "; " + err.Error())
+		}
 		response := JSONRPCResponse{nil, nil, JSONRPCArray{201, "Cannot Found Minning Coin Type", nil}}
 		session.writeJSONResponseToClient(&response)
 
@@ -504,7 +514,9 @@ func (session *StratumSession) connectStratumServer() error {
 		return StratumErrConnectStratumServerFailed
 	}
 
-	glog.V(3).Info("Connect Stratum Server Success: ", session.miningCoin, "; ", serverInfo.URL)
+	if glog.V(3) {
+		glog.Info("Connect Stratum Server Success: ", session.miningCoin, "; ", serverInfo.URL)
+	}
 
 	session.serverConn = serverConn
 	session.serverReader = bufio.NewReaderSize(serverConn, bufioReaderBufSize)
@@ -522,7 +534,9 @@ func (session *StratumSession) connectStratumServer() error {
 			session.isBTCAgent = true
 		}
 	}
-	glog.V(3).Info("UserAgent: ", userAgent)
+	if glog.V(3) {
+		glog.Info("UserAgent: ", userAgent)
+	}
 
 	// 为了保证Web侧“最近提交IP”显示正确，将矿机的IP做为第三个参数传递给Stratum Server
 	clientIP := session.clientIPPort[:strings.LastIndex(session.clientIPPort, ":")]
@@ -578,7 +592,9 @@ func (session *StratumSession) connectStratumServer() error {
 		return ErrSessionIDInconformity
 	}
 
-	glog.V(3).Info("Subscribe Success: ", string(responseJSON))
+	if glog.V(3) {
+		glog.Info("Subscribe Success: ", string(responseJSON))
+	}
 
 	// 认证响应的JSON数据
 	var authorizeResponseJSON []byte
@@ -602,7 +618,9 @@ func (session *StratumSession) connectStratumServer() error {
 	for i := 0; i < 5; i++ {
 		// 首次认证尝试
 		authWorkerName = fullWorkerNameWithCoinPostfix
-		glog.V(3).Info("Authorize: ", authWorkerName)
+		if glog.V(3) {
+			glog.Info("Authorize: ", authWorkerName)
+		}
 		authSuccess, authorizeResponseJSON = session.miningAuthorize(authWorkerName)
 
 		if authSuccess {
@@ -612,7 +630,9 @@ func (session *StratumSession) connectStratumServer() error {
 		// 认证没有成功，去掉币种后缀再试
 		// 目前来说只有开启切换功能时新创建的子账户有币种后缀，之前的子账户并没有
 		// 并且，即使重命名了子账户，没有重启过的stratum server也不会感知到子账户名已经改变
-		glog.V(3).Info("Authorize failed with ", authWorkerName, ", try ", session.fullWorkerName)
+		if glog.V(3) {
+			glog.Info("Authorize failed with ", authWorkerName, ", try ", session.fullWorkerName)
+		}
 		authWorkerName = session.fullWorkerName
 		authSuccess, authorizeResponseJSON = session.miningAuthorize(authWorkerName)
 
@@ -720,7 +740,9 @@ func (session *StratumSession) proxyStratum() {
 			// 客户端关闭了连接，结束会话
 			session.Stop()
 		}
-		glog.V(3).Info("DownStream: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
+		if glog.V(3) {
+			glog.Info("DownStream: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
+		}
 	}()
 
 	// 从客户端到服务器
@@ -755,7 +777,9 @@ func (session *StratumSession) proxyStratum() {
 			// 客户端关闭了连接，结束会话
 			session.Stop()
 		}
-		glog.V(3).Info("UpStream: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
+		if glog.V(3) {
+			glog.Info("UpStream: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
+		}
 	}()
 
 	// 监控来自zookeeper的切换指令并进行Stratum切换
@@ -784,7 +808,9 @@ func (session *StratumSession) proxyStratum() {
 
 			// 若币种未改变，则继续监控
 			if newMiningCoin == session.miningCoin {
-				glog.V(3).Info("Mining Coin Not Changed: ", session.fullWorkerName, ": ", session.miningCoin, " -> ", newMiningCoin)
+				if glog.V(3) {
+					glog.Info("Mining Coin Not Changed: ", session.fullWorkerName, ": ", session.miningCoin, " -> ", newMiningCoin)
+				}
 				continue
 			}
 
@@ -796,7 +822,9 @@ func (session *StratumSession) proxyStratum() {
 			}
 
 			// 币种已改变
-			glog.V(2).Info("Mining Coin Changed: ", session.fullWorkerName, "; ", session.miningCoin, " -> ", newMiningCoin, "; ", currentReconnectCounter)
+			if glog.V(2) {
+				glog.Info("Mining Coin Changed: ", session.fullWorkerName, "; ", session.miningCoin, " -> ", newMiningCoin, "; ", currentReconnectCounter)
+			}
 
 			// 进行币种切换
 			if session.isBTCAgent {
@@ -811,7 +839,9 @@ func (session *StratumSession) proxyStratum() {
 			break
 		}
 
-		glog.V(3).Info("CoinWatcher: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
+		if glog.V(3) {
+			glog.Info("CoinWatcher: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
+		}
 	}()
 }
 
