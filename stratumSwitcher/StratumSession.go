@@ -648,11 +648,19 @@ func (session *StratumSession) connectStratumServer() error {
 
 // miningAuthorize 矿机认证
 func (session *StratumSession) miningAuthorize(fullWorkerName string) (bool, []byte) {
-	request := session.stratumAuthorizeRequest
+	var request JSONRPCRequest
+
+	// 深拷贝
+	request.ID = session.stratumAuthorizeRequest.ID
+	request.Method = session.stratumAuthorizeRequest.Method
+	request.Params = make([]interface{}, len(session.stratumAuthorizeRequest.Params))
+	copy(request.Params, session.stratumAuthorizeRequest.Params)
+
+	// 设置为（可能）添加了币种后缀的矿工名
 	request.Params[0] = fullWorkerName
 
 	// 发送mining.authorize请求给服务器
-	_, err := session.writeJSONRequestToServer(request)
+	_, err := session.writeJSONRequestToServer(&request)
 
 	if err != nil {
 		glog.Warning("Write Authorize Request Failed: ", err)
