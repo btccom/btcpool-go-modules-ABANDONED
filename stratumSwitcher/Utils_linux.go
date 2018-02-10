@@ -49,6 +49,8 @@ func execNewBin(binPath string, args []string) (err error) {
 	envv := os.Environ()
 
 	glog.Info("Exec: ", argv)
+	// flush all logs before load the new binary
+	glog.Flush()
 
 	return syscall.Exec(realPath, argv, envv)
 }

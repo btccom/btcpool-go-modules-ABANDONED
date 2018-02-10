@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 
 	"github.com/golang/glog"
@@ -23,53 +24,62 @@ func NewUpgradable(sessionManager *StratumSessionManager) (upgradable *Upgradabl
 
 // 升级StratumSwitcher进程
 func (upgradable *Upgradable) upgradeStratumSwitcher() (err error) {
-	var runtimeData RuntimeData
+	glog.Info("Upgrading...")
 
+	var runtimeData RuntimeData
 	runtimeData.Action = "upgrade"
 
-	// 不再尝试恢复TCPListenerFD，而是每次都重新监听
+	// 保留旧TCPListenerFD时偶尔会失败，所以
+	// 不再尝试保留旧的TCPListenerFD，而是每次都重新监听
+
 	/*runtimeData.TCPListenerFD, err = getListenerFd(upgradable.sessionManager.tcpListener)
 	if err != nil {
 		return
 	}
-	setNoCloseOnExec(runtimeData.TCPListenerFD)*/
+	err = setNoCloseOnExec(runtimeData.TCPListenerFD)
+	if err != nil {
+		return
+	}*/
 
 	upgradable.sessionManager.lock.Lock()
-	for _, session := range upgradable.sessionManager.sessions {
-		var sessionData StratumSessionData
+	err = func() error {
+		for _, session := range upgradable.sessionManager.sessions {
+			var sessionData StratumSessionData
 
-		sessionData.SessionID = session.sessionID
-		sessionData.MiningCoin = session.miningCoin
-		sessionData.StratumSubscribeRequest = session.stratumSubscribeRequest
-		sessionData.StratumAuthorizeRequest = session.stratumAuthorizeRequest
+			sessionData.SessionID = session.sessionID
+			sessionData.MiningCoin = session.miningCoin
+			sessionData.StratumSubscribeRequest = session.stratumSubscribeRequest
+			sessionData.StratumAuthorizeRequest = session.stratumAuthorizeRequest
 
-		sessionData.ClientConnFD, err = getConnFd(session.clientConn)
-		if err != nil {
-			glog.Error("getConnFd Failed: ", err)
-			continue
+			sessionData.ClientConnFD, err = getConnFd(session.clientConn)
+			if err != nil {
+				return errors.New("getConnFd Failed: " + err.Error())
+			}
+
+			sessionData.ServerConnFD, err = getConnFd(session.serverConn)
+			if err != nil {
+				return errors.New("getConnFd Failed: " + err.Error())
+			}
+
+			err = setNoCloseOnExec(sessionData.ClientConnFD)
+			if err != nil {
+				return errors.New("setNoCloseOnExec Failed: " + err.Error())
+			}
+
+			err = setNoCloseOnExec(sessionData.ServerConnFD)
+			if err != nil {
+				return errors.New("setNoCloseOnExec Failed: " + err.Error())
+			}
+
+			runtimeData.SessionDatas = append(runtimeData.SessionDatas, sessionData)
 		}
 
-		sessionData.ServerConnFD, err = getConnFd(session.serverConn)
-		if err != nil {
-			glog.Error("getConnFd Failed: ", err)
-			continue
-		}
-
-		err = setNoCloseOnExec(sessionData.ClientConnFD)
-		if err != nil {
-			glog.Error("setNoCloseOnExec Failed: ", err)
-			continue
-		}
-
-		err = setNoCloseOnExec(sessionData.ServerConnFD)
-		if err != nil {
-			glog.Error("setNoCloseOnExec Failed: ", err)
-			continue
-		}
-
-		runtimeData.SessionDatas = append(runtimeData.SessionDatas, sessionData)
-	}
+		return nil
+	}()
 	upgradable.sessionManager.lock.Unlock()
+	if err != nil {
+		return
+	}
 
 	err = runtimeData.SaveToFile(runtimeFilePath)
 	if err != nil {
@@ -85,9 +95,6 @@ func (upgradable *Upgradable) upgradeStratumSwitcher() (err error) {
 		}
 	}
 	args = append(args, "-runtime="+runtimeFilePath)
-
-	// flush all logs before load the new binary
-	glog.Flush()
 
 	err = execNewBin(os.Args[0], args)
 	return
