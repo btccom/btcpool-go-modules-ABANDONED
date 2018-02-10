@@ -9,9 +9,9 @@
 ```bash
 mkdir ~/source
 cd ~/source
-wget http://storage.googleapis.com/golang/go1.9.2.linux-amd64.tar.gz
+wget http://storage.googleapis.com/golang/go1.9.4.linux-amd64.tar.gz
 cd /usr/local
-tar zxf ~/source/go1.9.2.linux-amd64.tar.gz
+tar zxf ~/source/go1.9.4.linux-amd64.tar.gz
 ln -s /usr/local/go/bin/go /usr/local/bin/go
 ```
 
