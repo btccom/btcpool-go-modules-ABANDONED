@@ -834,7 +834,7 @@ func (session *StratumSession) proxyStratum() {
 				session.Stop()
 			} else {
 				// 普通连接，直接切换币种
-				session.switchCoinType(newMiningCoin)
+				session.switchCoinType(newMiningCoin, currentReconnectCounter)
 			}
 			break
 		}
@@ -871,12 +871,23 @@ func (session *StratumSession) tryReconnect(currentReconnectCounter uint32) bool
 	return false
 }
 
-func (session *StratumSession) switchCoinType(newMiningCoin string) {
+func (session *StratumSession) switchCoinType(newMiningCoin string, currentReconnectCounter uint32) {
 	// 设置新币种
 	session.miningCoin = newMiningCoin
 
-	// 状态设为“正在重连服务器”，重连计数器加一
 	session.lock.Lock()
+	// 会话未在运行，放弃操作
+	if session.runningStat != StatRunning {
+		glog.Warning("SwitchCoinType: session not running")
+		return
+	}
+	// 会话已被其他线程重连，放弃操作
+	if currentReconnectCounter == session.reconnectCounter {
+		glog.Warning("SwitchCoinType: session reconnected by other goroutine")
+		return
+	}
+	// 会话未被重连，可操作
+	// 状态设为“正在重连服务器”，重连计数器加一
 	session.runningStat = StatReconnecting
 	session.reconnectCounter++
 	session.lock.Unlock()
