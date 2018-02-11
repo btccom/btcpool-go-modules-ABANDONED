@@ -72,7 +72,15 @@ func SubString(str string, start, length int) string {
 // IOCopyBuffer 在写入失败时还能拿到Buffer的IO拷贝函数
 func IOCopyBuffer(dst io.Writer, src io.Reader, buf []byte) (bufferLen int, err error) {
 	if buf == nil {
-		err = io.ErrShortBuffer
+		err = ErrInvalidBuffer
+		return
+	}
+	if src == nil {
+		err = ErrInvalidReader
+		return
+	}
+	if dst == nil {
+		err = ErrInvalidWritter
 		return
 	}
 	for {

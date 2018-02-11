@@ -71,4 +71,10 @@ var (
 	ErrReadFailed = errors.New("Read Failed")
 	// ErrWriteFailed IO写错误
 	ErrWriteFailed = errors.New("Write Failed")
+	// ErrInvalidReader 非法Reader
+	ErrInvalidReader = errors.New("Invalid Reader")
+	// ErrInvalidWritter 非法Writter
+	ErrInvalidWritter = errors.New("Invalid Writter")
+	// ErrInvalidBuffer 非法Buffer
+	ErrInvalidBuffer = errors.New("Invalid Buffer")
 )
