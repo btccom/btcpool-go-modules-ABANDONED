@@ -207,6 +207,11 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 
 	count := 0
 	for index, extAuxPow := range job.AuxPows {
+		if glog.V(3) {
+			glog.Info("[SubmitAuxBlock] <", handle.auxJobMaker.chains[index].Name, "> blockHash: ",
+				auxPowData.blockHash.Hex(), "; auxTarget: ", extAuxPow.Target.Hex())
+		}
+
 		// target reached
 		if auxPowData.blockHash.Hex() <= extAuxPow.Target.Hex() {
 
@@ -247,6 +252,7 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 	}
 
 	if count < 1 {
+		glog.Warning("[SubmitAuxBlock] high diff! blockHash: ", auxPowData.blockHash.Hex(), "; minTarget: ", job.MinTarget.Hex())
 		response.Error = RPCError{400, "high-diff"}
 		return
 	}
