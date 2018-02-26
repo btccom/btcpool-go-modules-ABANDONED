@@ -198,6 +198,7 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 		response.Error = RPCError{400, err.Error()}
 		return
 	}
+	hash = hash.Reverse()
 
 	job, err := handle.auxJobMaker.FindAuxJob(hash)
 	if err != nil {
@@ -228,7 +229,7 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 
 				for i := range params {
 					if str, ok := params[i].(string); ok {
-						str = strings.Replace(str, "{hash-hex}", extAuxPow.Hash.Hex(), -1)
+						str = strings.Replace(str, "{hash-hex}", extAuxPow.Hash.HexReverse(), -1)
 						str = strings.Replace(str, "{aux-pow-hex}", auxPowHex, -1)
 						params[i] = str
 					}
