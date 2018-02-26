@@ -151,7 +151,7 @@ func (handle *ProxyRPCHandle) createAuxBlock(response *RPCResponse) {
 	result.CoinbaseValue = job.CoinbaseValue
 	result.Hash = job.MerkleRoot.HexReverse()
 	result.Height = job.Height
-	result.PrevBlockHash = job.PrevBlockHash.HexReverse()
+	result.PrevBlockHash = job.PrevBlockHash.Hex()
 	result.Target = job.MinTarget.HexReverse()
 	result.MerkleSize = job.MerkleSize
 	result.MerkleNonce = job.MerkleNonce

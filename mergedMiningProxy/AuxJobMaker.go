@@ -116,6 +116,12 @@ func (maker *AuxJobMaker) updateAuxBlock(index int) {
 	}
 
 	maker.lock.Lock()
+	// 检查chainID是否更新，如已更新(或oldAuxBlock不存在)，则重置chainIDIndex
+	oldAuxBlock, ok := maker.currentAuxBlocks[index]
+	if !ok || oldAuxBlock.ChainID != auxBlockInfo.ChainID {
+		maker.chainIDIndexSlots = nil
+	}
+
 	maker.currentAuxBlocks[index] = auxBlockInfo
 	maker.lock.Unlock()
 
