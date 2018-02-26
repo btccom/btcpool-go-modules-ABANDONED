@@ -43,6 +43,13 @@ func main() {
 		} else {
 			glog.Info("Equal!")
 		}
+
+		bits := "207fffff"
+		target, err := BitsToTarget(bits)
+		glog.Info("BitsToTarget: ", bits, " -> ", target)
+		if err != nil {
+			glog.Info("failed: ", err)
+		}
 	*/
 
 	// 运行任务生成器
