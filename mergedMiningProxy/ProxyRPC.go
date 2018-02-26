@@ -145,23 +145,16 @@ func (handle *ProxyRPCHandle) createAuxBlock(response *RPCResponse) {
 		return
 	}
 
-	job.MerkleRoot.Reverse()
-	job.MinTarget.Reverse()
-
 	var result RPCResultCreateAuxBlock
 	result.Bits = job.MinBits
 	result.ChainID = 1
 	result.CoinbaseValue = job.CoinbaseValue
-	result.Hash = job.MerkleRoot.Hex()
+	result.Hash = job.MerkleRoot.HexReverse()
 	result.Height = job.Height
-	result.PrevBlockHash = job.PrevBlockHash.Hex()
-	result.Target = job.MinTarget.Hex()
+	result.PrevBlockHash = job.PrevBlockHash.HexReverse()
+	result.Target = job.MinTarget.HexReverse()
 	result.MerkleSize = job.MerkleSize
 	result.MerkleNonce = job.MerkleNonce
-
-	// Reverse for display
-	job.MerkleRoot.Reverse()
-	job.MinTarget.Reverse()
 
 	glog.Info("[CreateAuxBlock] height:", result.Height,
 		", bits:", result.Bits,
@@ -206,7 +199,6 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 		return
 	}
 
-	hash.Reverse()
 	job, err := handle.auxJobMaker.FindAuxJob(hash)
 	if err != nil {
 		response.Error = RPCError{400, err.Error()}
@@ -219,9 +211,6 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 		if auxPowData.blockHash.Hex() <= extAuxPow.Target.Hex() {
 
 			go func(index int, auxPowData AuxPowData, extAuxPow AuxPowInfo) {
-
-				extAuxPow.Hash.Reverse()
-
 				chain := handle.auxJobMaker.chains[index]
 				auxPowData.ExpandingBlockchainBranch(extAuxPow.BlockchainBranch)
 				auxPowHex := auxPowData.ToHex()

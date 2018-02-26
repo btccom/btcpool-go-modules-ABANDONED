@@ -65,7 +65,7 @@ func RPCCallCreateAuxBlock(rpcInfo ChainRPCInfo) (auxBlockInfo AuxBlockInfo, err
 	}
 
 	auxBlockInfo.Hash.Assign(hashByte)
-	auxBlockInfo.Hash.Reverse()
+	auxBlockInfo.Hash = auxBlockInfo.Hash.Reverse()
 
 	// ------------ ChainID ------------
 	chainIDKey := rpcInfo.CreateAuxBlock.ResponseKeys.ChainID
@@ -121,7 +121,6 @@ func RPCCallCreateAuxBlock(rpcInfo ChainRPCInfo) (auxBlockInfo AuxBlockInfo, err
 	}
 
 	auxBlockInfo.Target.Assign(targetByte)
-	auxBlockInfo.Target.Reverse()
 
 	// ------------ Height ------------
 

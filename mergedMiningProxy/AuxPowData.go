@@ -57,7 +57,7 @@ func ParseAuxPowData(dataHex string) (auxPowData *AuxPowData, err error) {
 	// 因为解析 coinbase_txn 十分困难，且无法简单得到其准确长度，
 	// 所以决定先计算出 block_hash，然后从字节流中找到该 hash 以确定 coinbase_txn 的长度。
 	auxPowData.blockHash = hash.Hash(auxPowData.parentBlock)
-	auxPowData.blockHash.Reverse()
+	auxPowData.blockHash = auxPowData.blockHash.Reverse()
 
 	// 从字节流中找到 block_hash 以确定 coinbase_txn 的长度
 	index := bytes.Index(data, auxPowData.blockHash[:])
@@ -67,9 +67,7 @@ func ParseAuxPowData(dataHex string) (auxPowData *AuxPowData, err error) {
 		* and can calculate the hash from that. The current Namecoin client doesn't check this field for
 		* validity, and as such some AuxPOW blocks have it little-endian, and some have it big-endian.
 		 */
-		auxPowData.blockHash.Reverse()
 		index = bytes.Index(data, auxPowData.blockHash[:])
-		auxPowData.blockHash.Reverse() // Reverse to normal big-endian for other process
 		if index == -1 {
 			err = errors.New("cannot found blockHash " + auxPowData.blockHash.Hex() + " from AuxPowData " + dataHex)
 			return
