@@ -112,6 +112,7 @@ func (maker *AuxJobMaker) updateAuxBlock(index int) {
 	auxBlockInfo, err := RPCCallCreateAuxBlock(chain)
 	if err != nil {
 		glog.Warning("CreateAuxBlock for ", chain.Name, " failed: ", err)
+		return
 	}
 
 	maker.lock.Lock()
