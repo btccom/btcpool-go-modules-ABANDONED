@@ -711,14 +711,15 @@ func (session *StratumSession) miningAuthorize(fullWorkerName string) (bool, []b
 }
 
 func (session *StratumSession) proxyStratum() {
-	// 记录当前的币种切换计数
-	currentReconnectCounter := session.getReconnectCounter()
 
 	// 注册会话
 	session.manager.RegisterStratumSession(session)
 
 	// 从服务器到客户端
 	go func() {
+		// 记录当前的币种切换计数
+		currentReconnectCounter := session.getReconnectCounter()
+
 		bufLen := session.serverReader.Buffered()
 		// 将bufio中的剩余内容写入对端
 		if bufLen > 0 {
@@ -747,6 +748,9 @@ func (session *StratumSession) proxyStratum() {
 
 	// 从客户端到服务器
 	go func() {
+		// 记录当前的币种切换计数
+		currentReconnectCounter := session.getReconnectCounter()
+
 		bufLen := session.clientReader.Buffered()
 		// 将bufio中的剩余内容写入对端
 		if bufLen > 0 {
@@ -784,6 +788,9 @@ func (session *StratumSession) proxyStratum() {
 
 	// 监控来自zookeeper的切换指令并进行Stratum切换
 	go func() {
+		// 记录当前的币种切换计数
+		currentReconnectCounter := session.getReconnectCounter()
+
 		for {
 			<-session.zkWatchEvent
 
@@ -882,7 +889,7 @@ func (session *StratumSession) switchCoinType(newMiningCoin string, currentRecon
 		return
 	}
 	// 会话已被其他线程重连，放弃操作
-	if currentReconnectCounter == session.reconnectCounter {
+	if currentReconnectCounter != session.reconnectCounter {
 		glog.Warning("SwitchCoinType: session reconnected by other goroutine")
 		return
 	}
