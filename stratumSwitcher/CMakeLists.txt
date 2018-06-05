@@ -11,14 +11,14 @@ endif()
 message("-- Package Install Prefix (-DINSTALL_PREFIX=<path>): ${INSTALL_PREFIX}")
 set(CMAKE_INSTALL_PREFIX ${INSTALL_PREFIX})
 
-# GOROOT
-set(GOROOT $ENV{GOROOT})
-if(NOT GOROOT)
-    set(GOROOT "/work/golang")
+# GOPATH
+set(GOPATH $ENV{GOPATH})
+if(NOT GOPATH)
+    set(GOPATH "/work/golang")
 endif()
 
 install(PROGRAMS
-            ${GOROOT}/bin/stratumSwitcher
+            ${GOPATH}/bin/stratumSwitcher
         DESTINATION
             ${INSTALL_PREFIX})
 
