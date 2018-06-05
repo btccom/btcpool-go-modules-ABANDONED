@@ -39,12 +39,15 @@ type StratumSessionManager struct {
 	tcpListener net.Listener
 	// 无停机升级对象
 	upgradable *Upgradable
+	// 用于在错误信息中展示的serverID
+	serverID uint8
 }
 
 // NewStratumSessionManager 创建Stratum会话管理器
 func NewStratumSessionManager(conf ConfigData) (manager *StratumSessionManager, err error) {
 	manager = new(StratumSessionManager)
 
+	manager.serverID = conf.ServerID
 	manager.sessions = make(StratumSessionMap)
 	manager.sessionIDManager = NewSessionIDManager(conf.ServerID)
 	manager.stratumServerInfoMap = conf.StratumServerMap
