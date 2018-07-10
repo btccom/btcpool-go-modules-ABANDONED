@@ -390,7 +390,7 @@ func (session *StratumSession) stratumFindWorkerName() error {
 
 			response.ID = request.ID
 			response.Result = result
-			response.Error = stratumErr.ToJSONRPCArray()
+			response.Error = stratumErr.ToJSONRPCArray(session.manager.serverID)
 
 			_, err = session.writeJSONResponseToClient(response)
 
@@ -435,7 +435,7 @@ func (session *StratumSession) stratumFindWorkerName() error {
 			// 否则，把错误信息发给矿机
 			response.ID = request.ID
 			response.Result = nil
-			response.Error = stratumErr.ToJSONRPCArray()
+			response.Error = stratumErr.ToJSONRPCArray(session.manager.serverID)
 
 			_, err = session.writeJSONResponseToClient(response)
 
@@ -496,7 +496,7 @@ func (session *StratumSession) connectStratumServer() error {
 	if !ok {
 		glog.Error("Stratum Server Not Found: ", session.miningCoin)
 		if runningStat != StatReconnecting {
-			response := JSONRPCResponse{nil, nil, StratumErrStratumServerNotFound.ToJSONRPCArray()}
+			response := JSONRPCResponse{nil, nil, StratumErrStratumServerNotFound.ToJSONRPCArray(session.manager.serverID)}
 			session.writeJSONResponseToClient(&response)
 		}
 		return StratumErrStratumServerNotFound
@@ -508,7 +508,7 @@ func (session *StratumSession) connectStratumServer() error {
 	if err != nil {
 		glog.Error("Connect Stratum Server Failed: ", session.miningCoin, "; ", serverInfo.URL, "; ", err)
 		if runningStat != StatReconnecting {
-			response := JSONRPCResponse{nil, nil, StratumErrConnectStratumServerFailed.ToJSONRPCArray()}
+			response := JSONRPCResponse{nil, nil, StratumErrConnectStratumServerFailed.ToJSONRPCArray(session.manager.serverID)}
 			session.writeJSONResponseToClient(&response)
 		}
 		return StratumErrConnectStratumServerFailed

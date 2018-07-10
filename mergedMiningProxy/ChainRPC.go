@@ -65,7 +65,7 @@ func RPCCallCreateAuxBlock(rpcInfo ChainRPCInfo) (auxBlockInfo AuxBlockInfo, err
 	}
 
 	auxBlockInfo.Hash.Assign(hashByte)
-	auxBlockInfo.Hash.Reverse()
+	auxBlockInfo.Hash = auxBlockInfo.Hash.Reverse()
 
 	// ------------ ChainID ------------
 	chainIDKey := rpcInfo.CreateAuxBlock.ResponseKeys.ChainID
@@ -104,32 +104,23 @@ func RPCCallCreateAuxBlock(rpcInfo ChainRPCInfo) (auxBlockInfo AuxBlockInfo, err
 
 	// ------------ Target ------------
 
-	targetKey := rpcInfo.CreateAuxBlock.ResponseKeys.Target
-	target, ok := rpcRawResult[targetKey]
-	if !ok {
-		err = errors.New("rpc result: missing " + targetKey)
-		return
-	}
-
-	targetStr, ok := target.(string)
-	if !ok {
-		err = errors.New("rpc result: " + targetKey + " is not a string")
-		return
+	targetStr, err := BitsToTarget(auxBlockInfo.Bits)
+	if err != nil {
+		err = errors.New("rpc result: cannot convert bits (" + auxBlockInfo.Bits + ") to target: " + err.Error())
 	}
 
 	targetByte, err := hex.DecodeString(targetStr)
 	if err != nil {
-		err = errors.New("rpc result: " + targetKey + " decode failed: " + err.Error())
+		err = errors.New("rpc result: targetStr (" + targetStr + ") decode failed: " + err.Error())
 		return
 	}
 
 	if len(targetByte) != 32 {
-		err = errors.New("rpc result: " + targetKey + " is not a hex of 32 bytes")
+		err = errors.New("rpc result: targetStr (" + targetStr + ") is not a hex of 32 bytes")
 		return
 	}
 
 	auxBlockInfo.Target.Assign(targetByte)
-	auxBlockInfo.Target.Reverse()
 
 	// ------------ Height ------------
 

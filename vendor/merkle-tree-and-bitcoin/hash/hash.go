@@ -2,7 +2,6 @@ package hash
 
 import (
 	"crypto/sha256"
-	"fmt"
 )
 
 // Hash is a trivial wrapper around one of Go's native hashing functions, that
@@ -26,10 +25,4 @@ func JoinAndHash(left Byte32, right Byte32) Byte32 {
 	combined := left[:]
 	combined = append(combined, right[:]...)
 	return Hash(combined)
-}
-
-// Hex is just syntax sugar to avoid having to write things like
-// fmt.Sprintf("0x", ... all over the place.
-func (h Byte32) Hex() string {
-	return fmt.Sprintf("%0x", h)
 }

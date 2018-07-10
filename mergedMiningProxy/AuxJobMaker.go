@@ -30,7 +30,7 @@ type AuxPowJob struct {
 	MerkleSize  uint32
 	MerkleNonce uint32
 
-	AuxPows []AuxPowInfo
+	AuxPows map[int]AuxPowInfo
 
 	// padding to RPC response
 	PrevBlockHash hash.Byte32
@@ -112,9 +112,16 @@ func (maker *AuxJobMaker) updateAuxBlock(index int) {
 	auxBlockInfo, err := RPCCallCreateAuxBlock(chain)
 	if err != nil {
 		glog.Warning("CreateAuxBlock for ", chain.Name, " failed: ", err)
+		return
 	}
 
 	maker.lock.Lock()
+	// 检查chainID是否更新，如已更新(或oldAuxBlock不存在)，则重置chainIDIndex
+	oldAuxBlock, ok := maker.currentAuxBlocks[index]
+	if !ok || oldAuxBlock.ChainID != auxBlockInfo.ChainID {
+		maker.chainIDIndexSlots = nil
+	}
+
 	maker.currentAuxBlocks[index] = auxBlockInfo
 	maker.lock.Unlock()
 
@@ -149,7 +156,7 @@ func (maker *AuxJobMaker) makeAuxJob() (job AuxPowJob, err error) {
 	}
 
 	if maker.chainIDIndexSlots == nil {
-		chainIDs := make([]uint32, blockNum)
+		chainIDs := make(map[int]uint32)
 		for index, block := range maker.currentAuxBlocks {
 			chainIDs[index] = block.ChainID
 		}
@@ -161,7 +168,7 @@ func (maker *AuxJobMaker) makeAuxJob() (job AuxPowJob, err error) {
 
 	job.MerkleNonce = maker.merkleNonce
 	job.MerkleSize = maker.merkleSize
-	job.AuxPows = make([]AuxPowInfo, blockNum)
+	job.AuxPows = make(map[int]AuxPowInfo)
 	// set default value of Bits and Target
 	job.MinBits = maker.currentAuxBlocks[0].Bits
 	job.MinTarget = maker.currentAuxBlocks[0].Target
@@ -187,10 +194,12 @@ func (maker *AuxJobMaker) makeAuxJob() (job AuxPowJob, err error) {
 
 	for index, block := range maker.currentAuxBlocks {
 		slot := int(maker.chainIDIndexSlots[block.ChainID])
-		job.AuxPows[index].Height = block.Height
-		job.AuxPows[index].Hash = block.Hash
-		job.AuxPows[index].Target = block.Target
-		job.AuxPows[index].BlockchainBranch = merkleTree.MerklePathForLeaf(slot)
+		var auxPow AuxPowInfo
+		auxPow.Height = block.Height
+		auxPow.Hash = block.Hash
+		auxPow.Target = block.Target
+		auxPow.BlockchainBranch = merkleTree.MerklePathForLeaf(slot)
+		job.AuxPows[index] = auxPow
 	}
 
 	return

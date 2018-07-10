@@ -43,6 +43,8 @@ type StratumSessionManager struct {
 	upgradable *Upgradable
 	// 区块链类型
 	chainType ChainType
+	// 用于在错误信息中展示的serverID
+	serverID uint8
 }
 
 // NewStratumSessionManager 创建Stratum会话管理器
@@ -66,6 +68,7 @@ func NewStratumSessionManager(conf ConfigData) (manager *StratumSessionManager, 
 
 	manager = new(StratumSessionManager)
 
+	manager.serverID = conf.ServerID
 	manager.sessions = make(StratumSessionMap)
 	manager.stratumServerInfoMap = conf.StratumServerMap
 	manager.zookeeperSwitcherWatchDir = conf.ZKSwitcherWatchDir

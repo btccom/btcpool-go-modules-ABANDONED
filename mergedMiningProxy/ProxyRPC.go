@@ -145,23 +145,16 @@ func (handle *ProxyRPCHandle) createAuxBlock(response *RPCResponse) {
 		return
 	}
 
-	job.MerkleRoot.Reverse()
-	job.MinTarget.Reverse()
-
 	var result RPCResultCreateAuxBlock
 	result.Bits = job.MinBits
 	result.ChainID = 1
 	result.CoinbaseValue = job.CoinbaseValue
-	result.Hash = job.MerkleRoot.Hex()
+	result.Hash = job.MerkleRoot.HexReverse()
 	result.Height = job.Height
 	result.PrevBlockHash = job.PrevBlockHash.Hex()
-	result.Target = job.MinTarget.Hex()
+	result.Target = job.MinTarget.HexReverse()
 	result.MerkleSize = job.MerkleSize
 	result.MerkleNonce = job.MerkleNonce
-
-	// Reverse for display
-	job.MerkleRoot.Reverse()
-	job.MinTarget.Reverse()
 
 	glog.Info("[CreateAuxBlock] height:", result.Height,
 		", bits:", result.Bits,
@@ -205,8 +198,8 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 		response.Error = RPCError{400, err.Error()}
 		return
 	}
+	hash = hash.Reverse()
 
-	hash.Reverse()
 	job, err := handle.auxJobMaker.FindAuxJob(hash)
 	if err != nil {
 		response.Error = RPCError{400, err.Error()}
@@ -215,13 +208,15 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 
 	count := 0
 	for index, extAuxPow := range job.AuxPows {
+		if glog.V(3) {
+			glog.Info("[SubmitAuxBlock] <", handle.auxJobMaker.chains[index].Name, "> blockHash: ",
+				auxPowData.blockHash.Hex(), "; auxTarget: ", extAuxPow.Target.Hex())
+		}
+
 		// target reached
 		if auxPowData.blockHash.Hex() <= extAuxPow.Target.Hex() {
 
 			go func(index int, auxPowData AuxPowData, extAuxPow AuxPowInfo) {
-
-				extAuxPow.Hash.Reverse()
-
 				chain := handle.auxJobMaker.chains[index]
 				auxPowData.ExpandingBlockchainBranch(extAuxPow.BlockchainBranch)
 				auxPowHex := auxPowData.ToHex()
@@ -234,7 +229,7 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 
 				for i := range params {
 					if str, ok := params[i].(string); ok {
-						str = strings.Replace(str, "{hash-hex}", extAuxPow.Hash.Hex(), -1)
+						str = strings.Replace(str, "{hash-hex}", extAuxPow.Hash.HexReverse(), -1)
 						str = strings.Replace(str, "{aux-pow-hex}", auxPowHex, -1)
 						params[i] = str
 					}
@@ -258,6 +253,7 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 	}
 
 	if count < 1 {
+		glog.Warning("[SubmitAuxBlock] high diff! blockHash: ", auxPowData.blockHash.Hex(), "; minTarget: ", job.MinTarget.Hex())
 		response.Error = RPCError{400, "high-diff"}
 		return
 	}

@@ -25,12 +25,12 @@ func (err *StratumError) Error() string {
 }
 
 // ToJSONRPCArray 转换为JSONRPCArray
-func (err *StratumError) ToJSONRPCArray() JSONRPCArray {
+func (err *StratumError) ToJSONRPCArray(extData interface{}) JSONRPCArray {
 	if err == nil {
 		return nil
 	}
 
-	return JSONRPCArray{err.ErrNo, err.ErrMsg, nil}
+	return JSONRPCArray{err.ErrNo, err.ErrMsg, extData}
 }
 
 var (

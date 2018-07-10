@@ -14,7 +14,7 @@ func getChainSlot(chainID uint32, merkleSize uint32, merkleNonce uint32) (slotNu
 	return
 }
 
-func assignChainSlots(chainIDs []uint32) (merkleNonce uint32, merkleSize uint32, chainIDIndexSlots map[uint32]uint32, slotIndexChainIDs map[uint32]uint32) {
+func assignChainSlots(chainIDs map[int]uint32) (merkleNonce uint32, merkleSize uint32, chainIDIndexSlots map[uint32]uint32, slotIndexChainIDs map[uint32]uint32) {
 	chainIDIndexSlots = make(map[uint32]uint32)
 	slotIndexChainIDs = make(map[uint32]uint32)
 
