@@ -429,7 +429,13 @@ func (session *StratumSession) stratumFindWorkerName() error {
 		defer close(e)
 		response := new(JSONRPCResponse)
 
-		// 矿机订阅
+		const (
+			StatNeedSubScribe = iota
+			StatNeedAuthorize
+		)
+
+		stat := StatNeedSubScribe
+
 		for {
 			requestJSON, err := session.clientReader.ReadBytes('\n')
 
@@ -448,64 +454,58 @@ func (session *StratumSession) stratumFindWorkerName() error {
 				continue
 			}
 
-			result, stratumErr := session.parseSubscribeRequest(request)
+			switch stat {
+			//=========================== 矿机订阅 ===========================
+			case StatNeedSubScribe:
+				result, stratumErr := session.parseSubscribeRequest(request)
 
-			response.ID = request.ID
-			response.Result = result
-			response.Error = stratumErr.ToJSONRPCArray(session.manager.serverID)
+				response.ID = request.ID
+				response.Result = result
+				response.Error = stratumErr.ToJSONRPCArray(session.manager.serverID)
 
-			_, err = session.writeJSONResponseToClient(response)
+				_, err = session.writeJSONResponseToClient(response)
 
-			if err != nil {
-				e <- errors.New("Write JSON Response Failed: " + err.Error())
-				return
-			}
+				if err != nil {
+					e <- errors.New("Write JSON Response Failed: " + err.Error())
+					return
+				}
 
-			// 如果订阅成功则跳出循环
-			if stratumErr == nil {
-				break
-			}
-		}
+				// 订阅成功
+				if stratumErr == nil {
+					stat = StatNeedAuthorize
+				}
 
-		// 矿机认证
-		for {
-			requestJSON, err := session.clientReader.ReadBytes('\n')
+			//=========================== 矿机认证 ===========================
+			case StatNeedAuthorize:
+				stratumErr := session.parseAuthorizeRequest(request)
 
-			if err != nil {
-				e <- errors.New("read line failed: " + err.Error())
-				return
-			}
+				// 如果认证成功则跳出循环
+				// 此时不发送认证成功的响应，因为事实上还没有连接服务器进行认证
+				if stratumErr == nil {
+					// 发送一个空错误表示成功
+					e <- nil
+					return
+				}
 
-			request, err := NewJSONRPCRequest(requestJSON)
+				// 否则，把错误信息发给矿机
+				response.ID = request.ID
+				response.Error = stratumErr.ToJSONRPCArray(session.manager.serverID)
 
-			// ignore the json decode error
-			if err != nil {
-				glog.V(3).Info("JSON decode failed: ", err.Error(), string(requestJSON))
-				continue
-			}
+				if session.protocolType == ProtocolBitcoinStratum {
+					response.Result = nil
+				} else {
+					response.Result = false
+				}
 
-			stratumErr := session.parseAuthorizeRequest(request)
+				_, err = session.writeJSONResponseToClient(response)
 
-			// 如果认证成功则跳出循环
-			// 此时不发送认证成功的响应，因为事实上还没有连接服务器进行认证
-			if stratumErr == nil {
-				// 发送一个空错误表示成功
-				e <- nil
-				return
-			}
+				if err != nil {
+					e <- errors.New("Write JSON Response Failed: " + err.Error())
+					return
+				}
 
-			// 否则，把错误信息发给矿机
-			response.ID = request.ID
-			response.Result = nil
-			response.Error = stratumErr.ToJSONRPCArray(session.manager.serverID)
-
-			_, err = session.writeJSONResponseToClient(response)
-
-			if err != nil {
-				e <- errors.New("Write JSON Response Failed: " + err.Error())
-				return
-			}
-		}
+			} // switch
+		} // for
 	}()
 
 	select {
@@ -588,53 +588,49 @@ func (session *StratumSession) connectStratumServer() error {
 
 	switch session.protocolType {
 	case ProtocolBitcoinStratum:
-		{
-			// 为请求添加sessionID
-			// API格式：mining.subscribe("user agent/version", "extranonce1")
-			// <https://en.bitcoin.it/wiki/Stratum_mining_protocol>
+		// 为请求添加sessionID
+		// API格式：mining.subscribe("user agent/version", "extranonce1")
+		// <https://en.bitcoin.it/wiki/Stratum_mining_protocol>
 
-			// 获取原始的参数1（user agent）
-			if len(session.stratumSubscribeRequest.Params) >= 1 {
-				userAgent, _ = session.stratumSubscribeRequest.Params[0].(string)
-			}
-			if glog.V(3) {
-				glog.Info("UserAgent: ", userAgent)
-			}
-
-			// 为了保证Web侧“最近提交IP”显示正确，将矿机的IP做为第三个参数传递给Stratum Server
-			clientIP := session.clientIPPort[:strings.LastIndex(session.clientIPPort, ":")]
-			clientIPLong := IP2Long(clientIP)
-			session.stratumSubscribeRequest.SetParam(userAgent, session.sessionIDString, clientIPLong)
+		// 获取原始的参数1（user agent）
+		if len(session.stratumSubscribeRequest.Params) >= 1 {
+			userAgent, _ = session.stratumSubscribeRequest.Params[0].(string)
 		}
-		break
+		if glog.V(3) {
+			glog.Info("UserAgent: ", userAgent)
+		}
+
+		// 为了保证Web侧“最近提交IP”显示正确，将矿机的IP做为第三个参数传递给Stratum Server
+		clientIP := session.clientIPPort[:strings.LastIndex(session.clientIPPort, ":")]
+		clientIPLong := IP2Long(clientIP)
+		session.stratumSubscribeRequest.SetParam(userAgent, session.sessionIDString, clientIPLong)
+
 	case ProtocolEthereumStratum:
+		fallthrough
 	case ProtocolEthereumStratumNiceHash:
-		{
-			// 获取原始的参数1（user agent）和参数2（protocol，可能存在）
-			if len(session.stratumSubscribeRequest.Params) >= 1 {
-				userAgent, _ = session.stratumSubscribeRequest.Params[0].(string)
-			}
-			if len(session.stratumSubscribeRequest.Params) >= 2 {
-				protocol, _ = session.stratumSubscribeRequest.Params[1].(string)
-			}
-			if glog.V(3) {
-				glog.Info("UserAgent: ", userAgent, "; Protocol: ", protocol)
-			}
-
-			clientIP := session.clientIPPort[:strings.LastIndex(session.clientIPPort, ":")]
-			clientIPLong := IP2Long(clientIP)
-
-			// Session ID 做为第三个参数传递
-			// 矿机IP做为第四个参数传递
-			session.stratumSubscribeRequest.SetParam(userAgent, protocol, session.sessionIDString, clientIPLong)
+		// 获取原始的参数1（user agent）和参数2（protocol，可能存在）
+		if len(session.stratumSubscribeRequest.Params) >= 1 {
+			userAgent, _ = session.stratumSubscribeRequest.Params[0].(string)
 		}
-		break
+		if len(session.stratumSubscribeRequest.Params) >= 2 {
+			protocol, _ = session.stratumSubscribeRequest.Params[1].(string)
+		}
+		if glog.V(3) {
+			glog.Info("UserAgent: ", userAgent, "; Protocol: ", protocol)
+		}
+
+		clientIP := session.clientIPPort[:strings.LastIndex(session.clientIPPort, ":")]
+		clientIPLong := IP2Long(clientIP)
+
+		// Session ID 做为第三个参数传递
+		// 矿机IP做为第四个参数传递
+		session.stratumSubscribeRequest.SetParam(userAgent, protocol, session.sessionIDString, clientIPLong)
+
 	default:
-		{
-			glog.Fatal("Unimplemented Stratum Protocol: ", session.protocolType)
-			return ErrParseSubscribeResponseFailed
-		}
+		glog.Fatal("Unimplemented Stratum Protocol: ", session.protocolType)
+		return ErrParseSubscribeResponseFailed
 	}
+
 	// 发送mining.subscribe请求给服务器
 	// sessionID已包含在其中，一并发送给服务器
 	_, err = session.writeJSONRequestToServer(session.stratumSubscribeRequest)
@@ -662,49 +658,44 @@ func (session *StratumSession) connectStratumServer() error {
 	// Bitcoin
 	switch session.protocolType {
 	case ProtocolBitcoinStratum:
+		fallthrough
 	case ProtocolEthereumStratumNiceHash:
-		{
-			result, ok := response.Result.([]interface{})
+		result, ok := response.Result.([]interface{})
 
-			if !ok {
-				glog.Warning("Parse Subscribe Response Failed: result is not an array")
-				return ErrParseSubscribeResponseFailed
-			}
-
-			if len(result) < 2 {
-				glog.Warning("Field too Few of Subscribe Response Result: ", result)
-				return ErrParseSubscribeResponseFailed
-			}
-
-			sessionID, ok := result[1].(string)
-
-			if !ok {
-				glog.Warning("Parse Subscribe Response Failed: result[1] is not a string")
-				return ErrParseSubscribeResponseFailed
-			}
-
-			// 服务器返回的 sessionID 与当前保存的不一致，此时挖到的所有share都会是无效的，断开连接
-			if sessionID != session.sessionIDString {
-				glog.Warning("Session ID Mismatched:  ", sessionID, " != ", session.sessionIDString)
-				return ErrSessionIDInconformity
-			}
-		}
-		break
-	case ProtocolEthereumStratum:
-		{
-			result, ok := response.Result.(bool)
-
-			if !ok {
-				glog.Warning("Parse Subscribe Response Failed: result is ", result)
-				return ErrParseSubscribeResponseFailed
-			}
-		}
-		break
-	default:
-		{
-			glog.Fatal("Unimplemented Stratum Protocol: ", session.protocolType)
+		if !ok {
+			glog.Warning("Parse Subscribe Response Failed: result is not an array")
 			return ErrParseSubscribeResponseFailed
 		}
+
+		if len(result) < 2 {
+			glog.Warning("Field too Few of Subscribe Response Result: ", result)
+			return ErrParseSubscribeResponseFailed
+		}
+
+		sessionID, ok := result[1].(string)
+
+		if !ok {
+			glog.Warning("Parse Subscribe Response Failed: result[1] is not a string")
+			return ErrParseSubscribeResponseFailed
+		}
+
+		// 服务器返回的 sessionID 与当前保存的不一致，此时挖到的所有share都会是无效的，断开连接
+		if sessionID != session.sessionIDString {
+			glog.Warning("Session ID Mismatched:  ", sessionID, " != ", session.sessionIDString)
+			return ErrSessionIDInconformity
+		}
+
+	case ProtocolEthereumStratum:
+		result, ok := response.Result.(bool)
+
+		if !ok || !result {
+			glog.Warning("Parse Subscribe Response Failed: response is ", responseJSON)
+			return ErrParseSubscribeResponseFailed
+		}
+
+	default:
+		glog.Fatal("Unimplemented Stratum Protocol: ", session.protocolType)
+		return ErrParseSubscribeResponseFailed
 	}
 
 	if glog.V(3) {
