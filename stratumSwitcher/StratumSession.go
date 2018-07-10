@@ -42,10 +42,16 @@ const bufioReaderBufSize = 128
 type ProtocolType uint8
 
 const (
-	// ProtocolStratum Stratum协议
-	ProtocolStratum ProtocolType = iota
+	// ProtocolBitcoinStratum 比特币Stratum协议
+	ProtocolBitcoinStratum ProtocolType = iota
+	// ProtocolEthereumStratum 以太坊普通Stratum协议
+	ProtocolEthereumStratum
+	// ProtocolEthereumStratumNiceHash NiceHash建议的以太坊Stratum协议
+	ProtocolEthereumStratumNiceHash
+	// ProtocolEthereumProxy EthProxy软件实现的以太坊Stratum协议
+	ProtocolEthereumProxy
 	// ProtocolUnknown 未知协议（无法处理）
-	ProtocolUnknown ProtocolType = iota
+	ProtocolUnknown
 )
 
 // RunningStat 运行状态
@@ -65,6 +71,8 @@ type StratumSession struct {
 	// 会话管理器
 	manager *StratumSessionManager
 
+	// Stratum协议类型
+	protocolType ProtocolType
 	// 是否为BTCAgent
 	isBTCAgent bool
 
@@ -166,11 +174,11 @@ func (session *StratumSession) Run() {
 	session.runningStat = StatRunning
 	session.lock.Unlock()
 
-	protocolType := session.protocolDetect()
+	session.protocolType = session.protocolDetect()
 
 	// 其实目前只有一种协议，即Stratum协议
 	// BTCAgent在认证完成之前走的也是Stratum协议
-	if protocolType != ProtocolStratum {
+	if session.protocolType == ProtocolUnknown {
 		session.Stop()
 		return
 	}
@@ -278,7 +286,19 @@ func (session *StratumSession) protocolDetect() ProtocolType {
 	if glog.V(3) {
 		glog.Info("Found Stratum Protocol")
 	}
-	return ProtocolStratum
+
+	if session.manager.chainType == ChainTypeBitcoin {
+		return ProtocolBitcoinStratum
+	}
+
+	if session.manager.chainType == ChainTypeEthereum {
+		// This is the default protocol. The protocol may change after further detection.
+		// The difference between ProtocolEthereumProxy and the other two Ethereum protocols is that
+		// ProtocolEthereumProxy is no "mining.subscribe" phase, so it is set as default to simplify the detection.
+		return ProtocolEthereumProxy
+	}
+
+	return ProtocolUnknown
 }
 
 func (session *StratumSession) runProxyStratum() {
@@ -318,8 +338,17 @@ func (session *StratumSession) parseSubscribeRequest(request *JSONRPCRequest) (i
 	session.stratumSubscribeRequest = request
 
 	// 生成响应
-	result := JSONRPCArray{JSONRPCArray{JSONRPCArray{"mining.set_difficulty", session.sessionIDString}, JSONRPCArray{"mining.notify", session.sessionIDString}}, session.sessionIDString, 8}
-	return result, nil
+	if session.manager.chainType == ChainTypeBitcoin {
+		result := JSONRPCArray{JSONRPCArray{JSONRPCArray{"mining.set_difficulty", session.sessionIDString}, JSONRPCArray{"mining.notify", session.sessionIDString}}, session.sessionIDString, 8}
+		return result, nil
+	}
+	if session.manager.chainType == ChainTypeEthereum {
+		// only ProtocolEthereumStratum and ProtocolEthereumStratumNiceHash has the "mining.subscribe" phase
+		session.protocolType = ProtocolEthereumStratum
+		result := true
+		return result, nil
+	}
+	return nil, StratumErrUnknownChainType
 }
 
 func (session *StratumSession) parseAuthorizeRequest(request *JSONRPCRequest) *StratumError {
@@ -567,29 +596,51 @@ func (session *StratumSession) connectStratumServer() error {
 		return err
 	}
 
-	result, ok := response.Result.([]interface{})
+	// Bitcoin
+	switch session.protocolType {
+	case ProtocolBitcoinStratum:
+		{
+			result, ok := response.Result.([]interface{})
 
-	if !ok {
-		glog.Warning("Parse Subscribe Response Failed: result is not an array")
-		return ErrParseSubscribeResponseFailed
-	}
+			if !ok {
+				glog.Warning("Parse Subscribe Response Failed: result is not an array")
+				return ErrParseSubscribeResponseFailed
+			}
 
-	if len(result) < 2 {
-		glog.Warning("Field too Few of Subscribe Response Result: ", result)
-		return ErrParseSubscribeResponseFailed
-	}
+			if len(result) < 2 {
+				glog.Warning("Field too Few of Subscribe Response Result: ", result)
+				return ErrParseSubscribeResponseFailed
+			}
 
-	sessionID, ok := result[1].(string)
+			sessionID, ok := result[1].(string)
 
-	if !ok {
-		glog.Warning("Parse Subscribe Response Failed: result[1] is not a string")
-		return ErrParseSubscribeResponseFailed
-	}
+			if !ok {
+				glog.Warning("Parse Subscribe Response Failed: result[1] is not a string")
+				return ErrParseSubscribeResponseFailed
+			}
 
-	// 服务器返回的 sessionID 与当前保存的不一致，此时挖到的所有share都会是无效的，断开连接
-	if sessionID != session.sessionIDString {
-		glog.Warning("Session ID Mismatched:  ", sessionID, " != ", session.sessionIDString)
-		return ErrSessionIDInconformity
+			// 服务器返回的 sessionID 与当前保存的不一致，此时挖到的所有share都会是无效的，断开连接
+			if sessionID != session.sessionIDString {
+				glog.Warning("Session ID Mismatched:  ", sessionID, " != ", session.sessionIDString)
+				return ErrSessionIDInconformity
+			}
+		}
+		break
+	case ProtocolEthereumStratum:
+		{
+			result, ok := response.Result.(bool)
+
+			if !ok {
+				glog.Warning("Parse Subscribe Response Failed: result is ", result)
+				return ErrParseSubscribeResponseFailed
+			}
+		}
+		break
+	default:
+		{
+			glog.Fatal("Unimplemented Stratum Protocol: ", session.protocolType)
+			return ErrParseSubscribeResponseFailed
+		}
 	}
 
 	if glog.V(3) {

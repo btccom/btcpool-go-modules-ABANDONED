@@ -56,10 +56,14 @@ func NewStratumSessionManager(conf ConfigData) (manager *StratumSessionManager, 
 	case "bitcoin":
 		chainType = ChainTypeBitcoin
 		indexBits = 24
+		// bitcoin stratum uses JSON-RPC 1.0
+		SetJSONRPCVersion(1)
 		break
 	case "ethereum":
 		chainType = ChainTypeEthereum
 		indexBits = 16
+		// ethereum stratum uses JSON-RPC 2.0
+		SetJSONRPCVersion(2)
 		break
 	default:
 		err = errors.New("Unknown ChainType: " + conf.ChainType)

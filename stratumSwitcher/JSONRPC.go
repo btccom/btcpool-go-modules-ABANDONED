@@ -18,8 +18,23 @@ type JSONRPCResponse struct {
 	Error  interface{} `json:"error"`
 }
 
+// JSONRPC2Response response message of json-rpc 2.0
+type JSONRPC2Response struct {
+	JSONRPC string `json:"jsonrpc,omitempty"`
+	JSONRPCResponse
+}
+
 // JSONRPCArray JSON RPC 数组
 type JSONRPCArray []interface{}
+
+// jsonRPCVersion version of JSON-RPC response
+var jsonRPCVersion uint8 = 1
+
+// SetJSONRPCVersion set the value of "jsonrpc" field in response.
+// Pass empty string if want to omit it.
+func SetJSONRPCVersion(version uint8) {
+	jsonRPCVersion = version
+}
 
 // NewJSONRPCRequest 解析 JSON RPC 请求字符串并创建 JSONRPCRequest 对象
 func NewJSONRPCRequest(rpcJSON []byte) (*JSONRPCRequest, error) {
@@ -62,5 +77,10 @@ func (rpcData *JSONRPCResponse) SetResult(result interface{}) {
 
 // ToJSONBytes 将 JSONRPCResponse 对象转换为 JSON 字节序列
 func (rpcData *JSONRPCResponse) ToJSONBytes() ([]byte, error) {
-	return json.Marshal(rpcData)
+	if jsonRPCVersion == 1 {
+		return json.Marshal(rpcData)
+	}
+
+	rpc2Data := JSONRPC2Response{"2.0", *rpcData}
+	return json.Marshal(rpc2Data)
 }

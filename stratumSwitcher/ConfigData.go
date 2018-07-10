@@ -6,7 +6,7 @@ import (
 )
 
 // ChainType 区块链类型
-type ChainType int
+type ChainType uint8
 
 const (
 	// ChainTypeBitcoin 比特币或类似区块链
