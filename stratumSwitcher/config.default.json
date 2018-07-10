@@ -1,5 +1,6 @@
 {
     "ServerID": 1,
+    "ChainType": "bitcoin",
     "ListenAddr": "0.0.0.0:18080",
     "StratumServerMap": {
         "btc": { "URL": "127.0.0.1:3333" },

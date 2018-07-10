@@ -5,9 +5,20 @@ import (
 	"io/ioutil"
 )
 
+// ChainType 区块链类型
+type ChainType int
+
+const (
+	// ChainTypeBitcoin 比特币或类似区块链
+	ChainTypeBitcoin ChainType = iota
+	// ChainTypeEthereum 以太坊或类似区块链
+	ChainTypeEthereum
+)
+
 // ConfigData 配置数据
 type ConfigData struct {
 	ServerID            uint8
+	ChainType           string
 	ListenAddr          string
 	StratumServerMap    StratumServerInfoMap
 	ZKBroker            []string

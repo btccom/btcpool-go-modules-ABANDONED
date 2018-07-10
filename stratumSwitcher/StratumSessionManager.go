@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/golang/glog"
@@ -39,18 +41,45 @@ type StratumSessionManager struct {
 	tcpListener net.Listener
 	// 无停机升级对象
 	upgradable *Upgradable
+	// 区块链类型
+	chainType ChainType
 }
 
 // NewStratumSessionManager 创建Stratum会话管理器
 func NewStratumSessionManager(conf ConfigData) (manager *StratumSessionManager, err error) {
+	var chainType ChainType
+	var indexBits uint8
+
+	switch strings.ToLower(conf.ChainType) {
+	case "bitcoin":
+		chainType = ChainTypeBitcoin
+		indexBits = 24
+		break
+	case "ethereum":
+		chainType = ChainTypeEthereum
+		indexBits = 16
+		break
+	default:
+		err = errors.New("Unknown ChainType: " + conf.ChainType)
+		return
+	}
+
 	manager = new(StratumSessionManager)
 
 	manager.sessions = make(StratumSessionMap)
-	manager.sessionIDManager = NewSessionIDManager(conf.ServerID)
 	manager.stratumServerInfoMap = conf.StratumServerMap
 	manager.zookeeperSwitcherWatchDir = conf.ZKSwitcherWatchDir
 	manager.tcpListenAddr = conf.ListenAddr
+	manager.chainType = chainType
+
+	manager.sessionIDManager, err = NewSessionIDManager(conf.ServerID, indexBits)
+	if err != nil {
+		return
+	}
 	manager.zookeeperManager, err = NewZookeeperManager(conf.ZKBroker)
+	if err != nil {
+		return
+	}
 
 	return
 }
