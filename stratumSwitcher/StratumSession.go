@@ -15,6 +15,12 @@ import (
 // BTCAgent的客户端类型前缀
 const btcAgentClientTypePrefix = "btccom-agent/"
 
+// NiceHash Ethereum Stratum Protocol 的协议类型前缀
+const ethereumStratumNiceHashPrefix = "ethereumstratum/"
+
+// 响应中使用的 NiceHash Ethereum Stratum Protocol 的版本
+const ethereumStratumNiceHashVersion = "EthereumStratum/1.0.0"
+
 // BTCAgent的ex-message的magic number
 const btcAgentExMessageMagicNumber = 0x7F
 
@@ -124,6 +130,11 @@ func NewStratumSession(manager *StratumSessionManager, clientConn net.Conn, sess
 
 	session.clientIPPort = clientConn.RemoteAddr().String()
 	session.sessionIDString = Uint32ToHex(session.sessionID)
+
+	if manager.chainType == ChainTypeEthereum {
+		// Ethereum uses 24 bit session id
+		session.sessionIDString = session.sessionIDString[2:8]
+	}
 
 	if glog.V(3) {
 		glog.Info("IP: ", session.clientIPPort, ", Session ID: ", session.sessionIDString)
@@ -339,13 +350,35 @@ func (session *StratumSession) parseSubscribeRequest(request *JSONRPCRequest) (i
 
 	// 生成响应
 	if session.manager.chainType == ChainTypeBitcoin {
+		if len(request.Params) >= 1 {
+			userAgent, ok := session.stratumSubscribeRequest.Params[0].(string)
+			// 判断是否为BTCAgent
+			if ok && strings.HasPrefix(strings.ToLower(userAgent), btcAgentClientTypePrefix) {
+				session.isBTCAgent = true
+			}
+		}
+
 		result := JSONRPCArray{JSONRPCArray{JSONRPCArray{"mining.set_difficulty", session.sessionIDString}, JSONRPCArray{"mining.notify", session.sessionIDString}}, session.sessionIDString, 8}
 		return result, nil
 	}
 	if session.manager.chainType == ChainTypeEthereum {
 		// only ProtocolEthereumStratum and ProtocolEthereumStratumNiceHash has the "mining.subscribe" phase
 		session.protocolType = ProtocolEthereumStratum
-		result := true
+		var result interface{} = true
+
+		if len(request.Params) >= 2 {
+			// message example: {"id":1,"method":"mining.subscribe","params":["ethminer 0.15.0rc1","EthereumStratum/1.0.0"]}
+			protocol, ok := session.stratumSubscribeRequest.Params[1].(string)
+
+			// 判断是否为"EthereumStratum/xxx"
+			if ok && strings.HasPrefix(strings.ToLower(protocol), ethereumStratumNiceHashPrefix) {
+				session.protocolType = ProtocolEthereumStratumNiceHash
+
+				// message example: {"id":1,"jsonrpc":"2.0","result":[["mining.notify","01003f","EthereumStratum/1.0.0"],"01003f"],"error":null}
+				result = JSONRPCArray{JSONRPCArray{"mining.notify", session.sessionIDString, ethereumStratumNiceHashVersion}, session.sessionIDString}
+			}
+		}
+
 		return result, nil
 	}
 	return nil, StratumErrUnknownChainType
@@ -550,28 +583,58 @@ func (session *StratumSession) connectStratumServer() error {
 	session.serverConn = serverConn
 	session.serverReader = bufio.NewReaderSize(serverConn, bufioReaderBufSize)
 
-	// 为请求添加sessionID
-	// API格式：mining.subscribe("user agent/version", "extranonce1")
-	// <https://en.bitcoin.it/wiki/Stratum_mining_protocol>
-
-	// 获取原始的参数1（user agent）
 	userAgent := "stratumSwitcher"
-	if len(session.stratumSubscribeRequest.Params) >= 1 {
-		userAgent, ok = session.stratumSubscribeRequest.Params[0].(string)
-		// 判断是否为BTCAgent
-		if strings.HasPrefix(strings.ToLower(userAgent), btcAgentClientTypePrefix) {
-			session.isBTCAgent = true
+	protocol := "Stratum"
+
+	switch session.protocolType {
+	case ProtocolBitcoinStratum:
+		{
+			// 为请求添加sessionID
+			// API格式：mining.subscribe("user agent/version", "extranonce1")
+			// <https://en.bitcoin.it/wiki/Stratum_mining_protocol>
+
+			// 获取原始的参数1（user agent）
+			if len(session.stratumSubscribeRequest.Params) >= 1 {
+				userAgent, _ = session.stratumSubscribeRequest.Params[0].(string)
+			}
+			if glog.V(3) {
+				glog.Info("UserAgent: ", userAgent)
+			}
+
+			// 为了保证Web侧“最近提交IP”显示正确，将矿机的IP做为第三个参数传递给Stratum Server
+			clientIP := session.clientIPPort[:strings.LastIndex(session.clientIPPort, ":")]
+			clientIPLong := IP2Long(clientIP)
+			session.stratumSubscribeRequest.SetParam(userAgent, session.sessionIDString, clientIPLong)
+		}
+		break
+	case ProtocolEthereumStratum:
+	case ProtocolEthereumStratumNiceHash:
+		{
+			// 获取原始的参数1（user agent）和参数2（protocol，可能存在）
+			if len(session.stratumSubscribeRequest.Params) >= 1 {
+				userAgent, _ = session.stratumSubscribeRequest.Params[0].(string)
+			}
+			if len(session.stratumSubscribeRequest.Params) >= 2 {
+				protocol, _ = session.stratumSubscribeRequest.Params[1].(string)
+			}
+			if glog.V(3) {
+				glog.Info("UserAgent: ", userAgent, "; Protocol: ", protocol)
+			}
+
+			clientIP := session.clientIPPort[:strings.LastIndex(session.clientIPPort, ":")]
+			clientIPLong := IP2Long(clientIP)
+
+			// Session ID 做为第三个参数传递
+			// 矿机IP做为第四个参数传递
+			session.stratumSubscribeRequest.SetParam(userAgent, protocol, session.sessionIDString, clientIPLong)
+		}
+		break
+	default:
+		{
+			glog.Fatal("Unimplemented Stratum Protocol: ", session.protocolType)
+			return ErrParseSubscribeResponseFailed
 		}
 	}
-	if glog.V(3) {
-		glog.Info("UserAgent: ", userAgent)
-	}
-
-	// 为了保证Web侧“最近提交IP”显示正确，将矿机的IP做为第三个参数传递给Stratum Server
-	clientIP := session.clientIPPort[:strings.LastIndex(session.clientIPPort, ":")]
-	clientIPLong := IP2Long(clientIP)
-	session.stratumSubscribeRequest.SetParam(userAgent, session.sessionIDString, clientIPLong)
-
 	// 发送mining.subscribe请求给服务器
 	// sessionID已包含在其中，一并发送给服务器
 	_, err = session.writeJSONRequestToServer(session.stratumSubscribeRequest)
@@ -599,6 +662,7 @@ func (session *StratumSession) connectStratumServer() error {
 	// Bitcoin
 	switch session.protocolType {
 	case ProtocolBitcoinStratum:
+	case ProtocolEthereumStratumNiceHash:
 		{
 			result, ok := response.Result.([]interface{})
 
@@ -713,7 +777,7 @@ func (session *StratumSession) connectStratumServer() error {
 		return ErrAuthorizeFailed
 	}
 
-	glog.Info("Authorize Success: ", session.clientIPPort, "; ", session.miningCoin, "; ", authWorkerName, "; ", authWorkerPasswd, "; ", userAgent)
+	glog.Info("Authorize Success: ", session.clientIPPort, "; ", session.miningCoin, "; ", authWorkerName, "; ", authWorkerPasswd, "; ", userAgent, "; ", protocol)
 	return nil
 }
 
