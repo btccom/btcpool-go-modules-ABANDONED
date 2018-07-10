@@ -20,7 +20,7 @@ type SessionIDManager struct {
 	//  server ID         session index id
 	//   [1, 255]        range: [0, MaxValidSessionID]
 	//
-	serverID   uint8
+	serverID   uint32
 	sessionIDs *bitset.BitSet
 
 	count    uint32 // how many ids are used now
@@ -53,7 +53,7 @@ func NewSessionIDManager(serverID uint8, indexBits uint8) (manager *SessionIDMan
 	manager.sessionIDMask = (1 << indexBits) - 1
 	manager.maxValidSessionID = manager.sessionIDMask - 1
 
-	manager.serverID = serverID
+	manager.serverID = uint32(serverID) << indexBits
 	manager.sessionIDs = bitset.New(uint(manager.sessionIDMask))
 	manager.count = 0
 	manager.allocIDx = 0
@@ -98,7 +98,7 @@ func (manager *SessionIDManager) AllocSessionID() (sessionID uint32, err error) 
 	manager.sessionIDs.Set(uint(manager.allocIDx))
 	manager.count++
 
-	sessionID = (uint32(manager.serverID) << manager.indexBits) | manager.allocIDx
+	sessionID = manager.serverID | manager.allocIDx
 	err = nil
 	return
 }
