@@ -9,6 +9,9 @@ type JSONRPCRequest struct {
 	ID     interface{}   `json:"id"`
 	Method string        `json:"method"`
 	Params []interface{} `json:"params"`
+
+	// Worker: ETHProxy from ethminer may contains this field
+	Worker string `json:"worker,omitempty"`
 }
 
 // JSONRPCResponse JSON RPC 响应的数据结构

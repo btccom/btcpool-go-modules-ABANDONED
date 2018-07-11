@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"strings"
 )
 
 // IP2Long IP转整数
@@ -103,4 +104,16 @@ func IOCopyBuffer(dst io.Writer, src io.Reader, buf []byte) (bufferLen int, err 
 		}
 	}
 	return
+}
+
+// StripEthAddrFromFullName 从矿机名中去除不必要的以太坊钱包地址
+func StripEthAddrFromFullName(fullNameStr string) string {
+	pos := strings.Index(fullNameStr, ".")
+
+	// The Ethereum address is 42 bytes and starting with "0x" as normal
+	// Example: 0x00d8c82Eb65124Ea3452CaC59B64aCC230AA3482
+	if pos != 42 || fullNameStr[0] != '0' || (fullNameStr[1] != 'x' && fullNameStr[1] != 'X') {
+		return fullNameStr
+	}
+	return fullNameStr[pos+1:]
 }

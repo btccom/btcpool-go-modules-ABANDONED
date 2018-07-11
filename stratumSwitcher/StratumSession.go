@@ -411,6 +411,11 @@ func (session *StratumSession) parseAuthorizeRequest(request *JSONRPCRequest) (r
 	// 保存原始请求以便转发给Stratum服务器
 	session.stratumAuthorizeRequest = request
 
+	// STRATUM / NICEHASH_STRATUM:        {"id":3, "method":"mining.authorize", "params":["test.aaa", "x"]}
+	// ETH_PROXY (Claymore):              {"worker": "eth1.0", "jsonrpc": "2.0", "params": ["0x00d8c82Eb65124Ea3452CaC59B64aCC230AA3482.test.aaa", "x"], "id": 2, "method": "eth_submitLogin"}
+	// ETH_PROXY (EthMiner, situation 1): {"id":1, "method":"eth_submitLogin", "params":["0x00d8c82Eb65124Ea3452CaC59B64aCC230AA3482"], "worker":"test.aaa"}
+	// ETH_PROXY (EthMiner, situation 2): {"id":1, "method":"eth_submitLogin", "params":["test"], "worker":"aaa"}
+
 	if len(request.Params) < 1 {
 		err = StratumErrTooFewParams
 		return
@@ -425,6 +430,14 @@ func (session *StratumSession) parseAuthorizeRequest(request *JSONRPCRequest) (r
 
 	// 矿工名
 	session.fullWorkerName = strings.TrimSpace(fullWorkerName)
+
+	// 以太坊矿工名中可能包含钱包地址，且矿工名本身可能位于附加的worker字段
+	if session.protocolType != ProtocolBitcoinStratum {
+		if request.Worker != "" {
+			session.fullWorkerName += "." + strings.TrimSpace(request.Worker)
+		}
+		session.fullWorkerName = StripEthAddrFromFullName(session.fullWorkerName)
+	}
 
 	if strings.Contains(session.fullWorkerName, ".") {
 		// 截取“.”之前的做为子账户名，“.”及之后的做矿机名
@@ -461,6 +474,11 @@ func (session *StratumSession) stratumHandleRequest(request *JSONRPCRequest, sta
 		}
 		return
 
+	case "eth_submitLogin":
+		if session.protocolType == ProtocolEthereumProxy {
+			*stat = StatSubScribed
+		}
+		fallthrough
 	case "mining.authorize":
 		if *stat != StatSubScribed {
 			err = StratumErrNeedSubscribed
