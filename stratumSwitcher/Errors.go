@@ -51,8 +51,8 @@ var (
 var (
 	// StratumErrNeedSubscribed 需要订阅
 	StratumErrNeedSubscribed = NewStratumError(101, "Need Subscribed")
-	// StratumErrNeedAuthorize 需要认证
-	StratumErrNeedAuthorize = NewStratumError(102, "Need Authorize")
+	// StratumErrDuplicateSubscribed 重复订阅
+	StratumErrDuplicateSubscribed = NewStratumError(102, "Duplicate Subscribed")
 	// StratumErrTooFewParams 参数太少
 	StratumErrTooFewParams = NewStratumError(103, "Too Few Params")
 	// StratumErrWorkerNameMustBeString 矿工名必须是字符串
