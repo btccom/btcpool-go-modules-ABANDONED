@@ -1050,7 +1050,7 @@ func (session *StratumSession) switchCoinType(newMiningCoin string, currentRecon
 // reconnectStratumServer 重连服务器
 func (session *StratumSession) reconnectStratumServer(retryTime int) {
 	// 移除会话注册
-	session.manager.ReleaseStratumSession(session)
+	session.manager.UnRegisterStratumSession(session)
 
 	// 销毁serverReader
 	if session.serverReader != nil {

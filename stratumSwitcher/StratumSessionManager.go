@@ -148,6 +148,24 @@ func (manager *StratumSessionManager) RegisterStratumSession(session *StratumSes
 	manager.lock.Unlock()
 }
 
+// UnRegisterStratumSession 解除Stratum会话注册（在Stratum会话重连时调用）
+func (manager *StratumSessionManager) UnRegisterStratumSession(session *StratumSession) {
+	manager.lock.Lock()
+
+	_, ok := manager.sessions[session.sessionID]
+	if !ok {
+		// 会话未注册
+		manager.lock.Unlock()
+		return
+	}
+
+	// 删除已注册的会话
+	delete(manager.sessions, session.sessionID)
+	manager.lock.Unlock()
+	// 从Zookeeper管理器中删除币种监控
+	manager.zookeeperManager.ReleaseW(session.zkWatchPath, session.sessionID)
+}
+
 // ReleaseStratumSession 释放Stratum会话（在Stratum会话停止时调用）
 func (manager *StratumSessionManager) ReleaseStratumSession(session *StratumSession) {
 	manager.lock.Lock()
