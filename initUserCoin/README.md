@@ -102,9 +102,9 @@ http://127.0.0.1:8000/btc-userlist.php?last_id=6
 ```bash
 mkdir ~/source
 cd ~/source
-wget http://storage.googleapis.com/golang/go1.9.4.linux-amd64.tar.gz
+wget http://storage.googleapis.com/golang/go1.10.3.linux-amd64.tar.gz
 cd /usr/local
-tar zxf ~/source/go1.9.4.linux-amd64.tar.gz
+tar zxf ~/source/go1.10.3.linux-amd64.tar.gz
 ln -s /usr/local/go/bin/go /usr/local/bin/go
 ```
 
