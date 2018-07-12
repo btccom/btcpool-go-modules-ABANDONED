@@ -21,6 +21,9 @@ const ethereumStratumNiceHashPrefix = "ethereumstratum/"
 // 响应中使用的 NiceHash Ethereum Stratum Protocol 的版本
 const ethereumStratumNiceHashVersion = "EthereumStratum/1.0.0"
 
+// 发送给sserver的ETHProxy协议版本字符串
+const ethproxyVersion = "ETHProxy/1.0.0"
+
 // BTCAgent的ex-message的magic number
 const btcAgentExMessageMagicNumber = 0x7F
 
@@ -414,6 +417,14 @@ func (session *StratumSession) parseSubscribeRequest(request *JSONRPCRequest) (r
 	}
 }
 
+func (session *StratumSession) makeSubscribeMessageForEthProxy() {
+	// 为ETHProxy协议生成一个订阅请求
+	// 该订阅请求是为了向sserver发送session id、矿机IP等需要而创建的
+	session.stratumSubscribeRequest = new(JSONRPCRequest)
+	session.stratumSubscribeRequest.Method = "mining.subscribe"
+	session.stratumSubscribeRequest.SetParam("ETHProxy", ethproxyVersion)
+}
+
 func (session *StratumSession) parseAuthorizeRequest(request *JSONRPCRequest) (result interface{}, err *StratumError) {
 	// 保存原始请求以便转发给Stratum服务器
 	session.stratumAuthorizeRequest = request
@@ -483,6 +494,7 @@ func (session *StratumSession) stratumHandleRequest(request *JSONRPCRequest, sta
 
 	case "eth_submitLogin":
 		if session.protocolType == ProtocolEthereumProxy {
+			session.makeSubscribeMessageForEthProxy()
 			*stat = StatSubScribed
 		}
 		fallthrough
@@ -661,6 +673,8 @@ func (session *StratumSession) connectStratumServer() error {
 		case ProtocolEthereumStratum:
 			fallthrough
 		case ProtocolEthereumStratumNiceHash:
+			fallthrough
+		case ProtocolEthereumProxy:
 			// 获取原始的参数1（user agent）和参数2（protocol，可能存在）
 			if len(session.stratumSubscribeRequest.Params) >= 1 {
 				userAgent, _ = session.stratumSubscribeRequest.Params[0].(string)
@@ -732,9 +746,11 @@ func (session *StratumSession) connectStratumServer() error {
 			}
 
 		case ProtocolEthereumStratum:
+			fallthrough
+		case ProtocolEthereumProxy:
 			result, ok := response.Result.(bool)
 			if !ok || !result {
-				glog.Warning("Parse Subscribe Response Failed: response is ", responseJSON)
+				glog.Warning("Parse Subscribe Response Failed: response is ", string(responseJSON))
 				return ErrParseSubscribeResponseFailed
 			}
 
