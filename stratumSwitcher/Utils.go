@@ -112,8 +112,9 @@ func StripEthAddrFromFullName(fullNameStr string) string {
 
 	// The Ethereum address is 42 bytes and starting with "0x" as normal
 	// Example: 0x00d8c82Eb65124Ea3452CaC59B64aCC230AA3482
-	if pos != 42 || fullNameStr[0] != '0' || (fullNameStr[1] != 'x' && fullNameStr[1] != 'X') {
-		return fullNameStr
+	if pos == 42 && fullNameStr[0] == '0' && (fullNameStr[1] == 'x' || fullNameStr[1] == 'X') {
+		return fullNameStr[pos+1:]
 	}
-	return fullNameStr[pos+1:]
+
+	return fullNameStr
 }
