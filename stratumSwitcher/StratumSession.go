@@ -627,11 +627,16 @@ func (session *StratumSession) connectStratumServer() error {
 	// 寻找币种对应的服务器
 	serverInfo, ok := session.manager.stratumServerInfoMap[session.miningCoin]
 
+	var rpcID interface{}
+	if session.stratumAuthorizeRequest != nil {
+		rpcID = session.stratumAuthorizeRequest.ID
+	}
+
 	// 对应的服务器不存在
 	if !ok {
 		glog.Error("Stratum Server Not Found: ", session.miningCoin)
 		if runningStat != StatReconnecting {
-			response := JSONRPCResponse{nil, nil, StratumErrStratumServerNotFound.ToJSONRPCArray(session.manager.serverID)}
+			response := JSONRPCResponse{rpcID, nil, StratumErrStratumServerNotFound.ToJSONRPCArray(session.manager.serverID)}
 			session.writeJSONResponseToClient(&response)
 		}
 		return StratumErrStratumServerNotFound
@@ -643,7 +648,7 @@ func (session *StratumSession) connectStratumServer() error {
 	if err != nil {
 		glog.Error("Connect Stratum Server Failed: ", session.miningCoin, "; ", serverInfo.URL, "; ", err)
 		if runningStat != StatReconnecting {
-			response := JSONRPCResponse{nil, nil, StratumErrConnectStratumServerFailed.ToJSONRPCArray(session.manager.serverID)}
+			response := JSONRPCResponse{rpcID, nil, StratumErrConnectStratumServerFailed.ToJSONRPCArray(session.manager.serverID)}
 			session.writeJSONResponseToClient(&response)
 		}
 		return StratumErrConnectStratumServerFailed
