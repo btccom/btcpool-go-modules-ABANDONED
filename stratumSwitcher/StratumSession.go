@@ -172,11 +172,21 @@ func (session *StratumSession) setStat(stat RunningStat) {
 	session.lock.Unlock()
 }
 
+// setStatNonLock 设置会话状态（
+func (session *StratumSession) setStatNonLock(stat RunningStat) {
+	session.runningStat = stat
+}
+
 // getStat 获取会话状态（线程安全）
 func (session *StratumSession) getStat() RunningStat {
 	session.lock.Lock()
 	defer session.lock.Unlock()
 
+	return session.runningStat
+}
+
+// getStatNonLock 获取会话状态（无锁，非线程安全，用于在已加锁函数内部调用）
+func (session *StratumSession) getStatNonLock() RunningStat {
 	return session.runningStat
 }
 
@@ -613,7 +623,7 @@ func (session *StratumSession) findMiningCoin() error {
 
 func (session *StratumSession) connectStratumServer() error {
 	// 获取当前运行状态
-	runningStat := session.getStat()
+	runningStat := session.getStatNonLock()
 	// 寻找币种对应的服务器
 	serverInfo, ok := session.manager.stratumServerInfoMap[session.miningCoin]
 
@@ -878,6 +888,10 @@ func (session *StratumSession) miningAuthorize(fullWorkerName string) (bool, []b
 }
 
 func (session *StratumSession) proxyStratum() {
+	if session.getStat() != StatRunning {
+		glog.Info("proxyStratum: session stopped by another goroutine")
+		return
+	}
 
 	// 注册会话
 	session.manager.RegisterStratumSession(session)
@@ -906,7 +920,7 @@ func (session *StratumSession) proxyStratum() {
 			session.tryReconnect(currentReconnectCounter)
 		} else {
 			// 客户端关闭了连接，结束会话
-			session.Stop()
+			session.tryStop(currentReconnectCounter)
 		}
 		if glog.V(3) {
 			glog.Info("DownStream: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
@@ -934,19 +948,15 @@ func (session *StratumSession) proxyStratum() {
 		// 不对BTCAgent应用重连
 		if err == ErrWriteFailed && !session.isBTCAgent {
 			// 服务器关闭了连接，尝试重连
-			success := session.tryReconnect(currentReconnectCounter)
-			// 已经重连过，尝试将缓存中的内容转发到新服务器
-			if !success {
-				// 若重连已完成，尝试将缓存中的内容转发到新服务器
-				if bufferLen > 0 && session.getStat() == StatRunning {
-					session.serverConn.Write(buffer[0:bufferLen])
-				}
-				// 重连未完成时，缓存中的数据一定是提交给前一个服务器的，
-				// 可以安全的丢弃。
+			session.tryReconnect(currentReconnectCounter)
+			// 若重连成功，尝试将缓存中的内容转发到新服务器
+			// getStat() 会锁定到重连成功或放弃重连为止
+			if bufferLen > 0 && session.getStat() == StatRunning {
+				session.serverConn.Write(buffer[0:bufferLen])
 			}
 		} else {
 			// 客户端关闭了连接，结束会话
-			session.Stop()
+			session.tryStop(currentReconnectCounter)
 		}
 		if glog.V(3) {
 			glog.Info("UpStream: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
@@ -1005,7 +1015,7 @@ func (session *StratumSession) proxyStratum() {
 				// 因为BTCAgent会话是有状态的（一个连接里包含多个AgentSession，
 				// 对应多台矿机），所以没有办法安全的无缝切换BTCAgent会话，
 				// 只能采用断开连接的方法。
-				session.Stop()
+				session.tryStop(currentReconnectCounter)
 			} else {
 				// 普通连接，直接切换币种
 				session.switchCoinType(newMiningCoin, currentReconnectCounter)
@@ -1017,6 +1027,27 @@ func (session *StratumSession) proxyStratum() {
 			glog.Info("CoinWatcher: exited; ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
 		}
 	}()
+}
+
+// 检查是否发生了重连，若未发生重连，则停止会话
+func (session *StratumSession) tryStop(currentReconnectCounter uint32) bool {
+	session.lock.Lock()
+	defer session.lock.Unlock()
+
+	// 会话未在运行，不停止
+	if session.runningStat != StatRunning {
+		return false
+	}
+
+	// 判断是否已经重连过
+	if currentReconnectCounter == session.reconnectCounter {
+		//未发生重连，尝试停止
+		go session.Stop()
+		return true
+	}
+
+	// 已重连，则不进行任何操作
+	return false
 }
 
 // 检查是否发生了重连，若未发生重连，则尝试重连
@@ -1033,11 +1064,10 @@ func (session *StratumSession) tryReconnect(currentReconnectCounter uint32) bool
 	if currentReconnectCounter == session.reconnectCounter {
 		//未发生重连，尝试重连
 		// 状态设为“正在重连服务器”，重连计数器加一
-		session.runningStat = StatReconnecting
+		session.setStatNonLock(StatReconnecting)
 		session.reconnectCounter++
 
-		go session.reconnectStratumServer(retryTimeWhenServerDown)
-
+		session.reconnectStratumServer(retryTimeWhenServerDown)
 		return true
 	}
 
@@ -1049,7 +1079,10 @@ func (session *StratumSession) switchCoinType(newMiningCoin string, currentRecon
 	// 设置新币种
 	session.miningCoin = newMiningCoin
 
+	// 锁定会话，防止会话被其他线程停止
 	session.lock.Lock()
+	defer session.lock.Unlock()
+
 	// 会话未在运行，放弃操作
 	if session.runningStat != StatRunning {
 		glog.Warning("SwitchCoinType: session not running")
@@ -1062,12 +1095,11 @@ func (session *StratumSession) switchCoinType(newMiningCoin string, currentRecon
 	}
 	// 会话未被重连，可操作
 	// 状态设为“正在重连服务器”，重连计数器加一
-	session.runningStat = StatReconnecting
+	session.setStatNonLock(StatReconnecting)
 	session.reconnectCounter++
-	session.lock.Unlock()
 
 	// 重连服务器
-	go session.reconnectStratumServer(retryTimeWhenServerDown)
+	session.reconnectStratumServer(retryTimeWhenServerDown)
 }
 
 // reconnectStratumServer 重连服务器
@@ -1108,15 +1140,15 @@ func (session *StratumSession) reconnectStratumServer(retryTime int) {
 		}
 	}
 	if err != nil {
-		session.Stop()
+		go session.Stop()
 		return
 	}
 
 	// 回到运行状态
-	session.setStat(StatRunning)
+	session.setStatNonLock(StatRunning)
 
 	// 转入纯代理模式
-	session.proxyStratum()
+	go session.proxyStratum()
 }
 
 func peekWithTimeout(reader *bufio.Reader, len int, timeout time.Duration) ([]byte, error) {
