@@ -221,6 +221,9 @@ func (session *StratumSession) Resume(sessionData StratumSessionData, serverConn
 	session.runningStat = StatRunning
 	session.lock.Unlock()
 
+	// 设置默认协议
+	session.protocolType = session.getDefaultStratumProtocol()
+
 	// 恢复服务器连接
 	session.serverConn = serverConn
 	session.serverReader = bufio.NewReaderSize(serverConn, bufioReaderBufSize)
@@ -322,6 +325,10 @@ func (session *StratumSession) protocolDetect() ProtocolType {
 		glog.Info("Found Stratum Protocol")
 	}
 
+	return session.getDefaultStratumProtocol()
+}
+
+func (session *StratumSession) getDefaultStratumProtocol() ProtocolType {
 	if session.manager.chainType == ChainTypeBitcoin {
 		return ProtocolBitcoinStratum
 	}
