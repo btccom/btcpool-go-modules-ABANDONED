@@ -236,7 +236,7 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 						}
 					}
 
-				} else if paramsMap, ok := params.(map[interface{}]interface{}); ok { // JSON-RPC 2.0 param object
+				} else if paramsMap, ok := params.(map[string]interface{}); ok { // JSON-RPC 2.0 param object
 					for k := range paramsMap {
 						if str, ok := paramsMap[k].(string); ok {
 							str = strings.Replace(str, "{hash-hex}", extAuxPow.Hash.HexReverse(), -1)
