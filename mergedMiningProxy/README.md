@@ -208,10 +208,89 @@ supervisorctl update
 supervisorctl status
 ```
 
-### 更新
+#### 更新
 
 ```bash
 export GOPATH=/work/golang
 GIT_TERMINAL_PROMPT=1 go get -u github.com/btccom/btcpool-go-modules/mergedMiningProxy
 diff /work/golang/src/github.com/btccom/btcpool-go-modules/mergedMiningProxy/config.default.json /work/golang/mergedMiningProxy/config.json
 ```
+
+### 调用该代理的RPC
+
+支持 `getauxblock`, `createauxblock`, `submitauxblock` 等方法，方法的参数列表与域名币（Namecoin）一致。
+
+如果不是上述方法，则该方法将被转发到配置文件中定义的第一个区块链节点处，并原样返回结果。
+
+一个特例是 `help` 方法，为了兼容 BTCPool `nmcauxmaker` 的域名币节点版本检查逻辑，help 方法会在原始返回值后附加对 `createauxblock` 和 `submitauxblock` 方法的描述。
+
+如：
+
+```bash
+# 获取任务
+curl -v --user admin:admin --data-binary '{"id":null,"method":"getauxblock","params":[]}' -H 'content-type: application/json' http://localhost:8999/
+
+# 提交任务
+curl -v --user admin:admin --data-binary '{"id":1,"method":"getauxblock","params":["6c8adaefa07ab5ff14ddff1b8e2bae4ecfc59ef0a985064bd202565106ff054b","02000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4b039ccd09041b96485b742f4254432e434f4d2ffabe6d6d6c8adaefa07ab5ff14ddff1b8e2bae4ecfc59ef0a985064bd202565106ff054b020000004204cb9a010388711000000000000000ffffffff0200000000000000001976a914c0174e89bd93eacd1d5a1af4ba1802d412afc08688ac0000000000000000266a24aa21a9ede2f61c3f71d1defd3fa999dfa36953755c690689799962b48bebd836974e8cf9000000002d6009ef30ae316bcebe42ea7f4feaf995fb34211aa80b9835e06b0388769ce6000000000000000000000000002075cc0a4e259833d348dd282c00a61ab112bea0e02d1ac85e4773d08a01b87b3f2dc921f1fd927d473649cbb7115debb95de77455401566d56b12a94cbfca8dff1b96485bffff7f201b96485b"]}' -H 'content-type: application/json' http://localhost:8999/
+
+# 获取任务（这里指定的钱包将被忽略，因为无法确定是哪个币种的）
+curl -v --user admin:admin --data-binary '{"id":null,"method":"createauxblock","params":["my2dxGb5jz43ktwGxg2doUaEb9WhZ9PQ7K"]}' -H 'content-type: application/json' http://localhost:8999/
+
+# 提交任务
+curl -v --user admin:admin --data-binary '{"id":1,"method":"submitauxblock","params":["6c8adaefa07ab5ff14ddff1b8e2bae4ecfc59ef0a985064bd202565106ff054b","02000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4b039ccd09041b96485b742f4254432e434f4d2ffabe6d6d6c8adaefa07ab5ff14ddff1b8e2bae4ecfc59ef0a985064bd202565106ff054b020000004204cb9a010388711000000000000000ffffffff0200000000000000001976a914c0174e89bd93eacd1d5a1af4ba1802d412afc08688ac0000000000000000266a24aa21a9ede2f61c3f71d1defd3fa999dfa36953755c690689799962b48bebd836974e8cf9000000002d6009ef30ae316bcebe42ea7f4feaf995fb34211aa80b9835e06b0388769ce6000000000000000000000000002075cc0a4e259833d348dd282c00a61ab112bea0e02d1ac85e4773d08a01b87b3f2dc921f1fd927d473649cbb7115debb95de77455401566d56b12a94cbfca8dff1b96485bffff7f201b96485b"]}' -H 'content-type: application/json' http://localhost:8999/
+```
+
+#### 获取任务
+
+返回的结果格式如下：
+
+```js
+{
+    "id": "1",
+    "result": {
+        "hash": "9e077526b9e82040ec82492993d6e1d25c92ce572d03eb1caa6d3b868a558a32", // 联合挖矿区块hash（实际为多个区块hash的merkle root）
+        "chainid": 1, // 虚假的链id，始终为1
+        "previousblockhash": "949a1539fa4ac733d651f6709967d541374e3e23f4422ea6ac2bf925e385807a", // 第一个区块链的当前块的父区块哈希
+        "coinbasevalue": 5000000000, // 第一个区块链的当前块奖励
+        "bits": "207fffff", // 多个区块链中最小的难度对应的bits
+        "height": 123, // 第一个区块链的当前块高度
+        "_target": "0000000000000000000000000000000000000000000000000000000000ffff7f", // 上述bits对应的target
+        "merkle_size": 2, // 联合挖矿 merkle tree 的大小
+        "merkle_nonce": 2596996162 // 确定各个区块链在 merkle tree 上的位置用的随机值
+    },
+    "error": null
+}
+```
+
+格式类似于域名币（Namecoin）的相同RPC的返回值，不过多了两个字段：`merkle_size` 和 `merkle_nonce`。
+
+为了在主链（比特币）中正确嵌入多币种合并挖矿tag，矿池必须进行适配，识别这两个字段并放入[coinbase交易的联合挖矿tag中](https://en.bitcoin.it/wiki/Merged_mining_specification#Merged_mining_coinbase)。
+
+
+#### 提交任务
+
+若提交的工作量满足至少一个区块链的难度，返回：
+
+```
+{"id":1,"result":true,"error":null}
+````
+
+否则，返回
+
+```
+{"id":1,"result":null,"error":{"code":400,"message":"high-diff"}}
+````
+
+如果发生其他错误，比如`block hash`未找到，或`aux pow`格式不正确等，则会返回对应的错误提示，格式类似上面的 `400 high-diff`。
+例如：
+
+```
+{"id":1,"result":null,"error":{"code":400,"message":"cannot found blockHash d725af6c2243cdc8eb1180f72f820b8692f360ec1a2d87df0ba0c7c1c61f2c95 from AuxPowData 02000000010000000000000000000000000000000000000000000000000000000000000000ffffffff4b039ccd09041b96485b742f4254432e434f4d2ffabe6d6d6c8adaefa07ab5ff14ddff1b8e2bae4ecfc59ef0a985064bd202565106ff054b020000004204cb9a010388711000000000000000ffffffff0200000000000000001976a914c0174e89bd93eacd1d5a1af4ba1802d412afc08688ac0000000000000000266a24aa21a9ede2f61c3f71d1defd3fa999dfa36953755c690689799962b48bebd836974e8cf9000000002d6009ef30ae316bcebe42ea7f4feaf995fb34211aa80b9835e06b0388769ce6000000000000000000000000002075cc0a4e259833d348dd282c00a61ab112bea0e02d1ac85e4773d08a01b87b3f2dc921f1fd927d473649cbb7115debb95de77455401566d56b12a94cbfca8dff1b96485bffff7f301b96485b"}}
+```
+
+注意，该RPC返回`true`不代表工作量真的被至少一个区块链接受。具体提交是否成功，还需要看本程序的日志。
+
+
+### TODO
+
+* 将各个区块链的爆块记录写入数据库。
