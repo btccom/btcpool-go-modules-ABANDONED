@@ -34,7 +34,7 @@ func RPCCallCreateAuxBlock(rpcInfo ChainRPCInfo) (auxBlockInfo AuxBlockInfo, err
 
 	rpcRawResult, ok := response.Result.(map[string]interface{})
 	if !ok {
-		err = errors.New("RPC result is not a JSON object")
+		err = errors.New("RPC result is not a JSON object: " + string(responseJSON))
 		return
 	}
 

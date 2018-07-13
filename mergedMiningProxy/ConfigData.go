@@ -25,14 +25,14 @@ type RPCCreateAuxBlockResultKeys struct {
 // RPCCreateAuxBlockInfo RPC方法 createauxblock 的请求和响应信息
 type RPCCreateAuxBlockInfo struct {
 	Method       string
-	Params       []interface{}
+	Params       interface{}
 	ResponseKeys RPCCreateAuxBlockResultKeys
 }
 
 // RPCSubmitAuxBlockInfo RPC方法 submitauxblock 的请求和响应信息
 type RPCSubmitAuxBlockInfo struct {
 	Method string
-	Params []interface{}
+	Params interface{}
 }
 
 // ChainRPCServer 合并挖矿的链的RPC服务器

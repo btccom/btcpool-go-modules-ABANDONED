@@ -8,11 +8,18 @@ import (
 	"net/http"
 )
 
-// RPCRequest RPC请求
+// RPCRequest JSON-RPC 1.0 请求（数组参数）
 type RPCRequest struct {
 	ID     interface{}   `json:"id"`
 	Method string        `json:"method"`
 	Params []interface{} `json:"params"`
+}
+
+// RPC2Request JSON-RPC 2.0 请求（数组或对象参数）
+type RPC2Request struct {
+	ID     interface{} `json:"id"`
+	Method string      `json:"method"`
+	Params interface{} `json:"params"`
 }
 
 // RPCResponse RPC响应
@@ -29,8 +36,8 @@ type RPCError struct {
 }
 
 // RPCCall 调用RPC方法
-func RPCCall(server ChainRPCServer, method string, params []interface{}) (response []byte, err error) {
-	rpcRequest := RPCRequest{nil, method, params}
+func RPCCall(server ChainRPCServer, method string, params interface{}) (response []byte, err error) {
+	rpcRequest := RPC2Request{nil, method, params}
 
 	// encode request to buffer
 	bufSend := &bytes.Buffer{}
