@@ -38,28 +38,33 @@
             }
         },
         {
-            "ChainID": 2,
-            "Name": "Namecoin Testnet",
+            "Name": "Elastos Regtest",
             "RPCServer":{
-                "URL": "http://127.0.0.1:48444/",
+                "URL": "http://127.0.0.1:4336/",
                 "User": "test",
                 "Passwd": "123"
             },
             "CreateAuxBlock": {
-                "Method": "getauxblock",
-                "Params": [],
+                "Method": "createauxblock",
+                "Params": {
+                    "paytoaddress": "8VYXVxKKSAxkmRrfmGpQR2Kc66XhG6m3ta"
+                },
                 "ResponseKeys": {
                     "Hash": "hash",
+                    "ChainID": "chainid",
                     "Bits": "bits",
-                    "Target": "_target"
+                    "Target": "_target",
+                    "Height": "height",
+                    "PrevBlockHash": "previousblockhash",
+                    "CoinbaseValue": "coinbasevalue"
                 }
             },
             "SubmitAuxBlock": {
-                "Method": "getauxblock",
-                "Params": [
-                    "{hash-hex}",
-                    "{aux-pow-hex}"
-                ]
+                "Method": "submitauxblock",
+                "Params": {
+                    "blockhash": "{hash-hex}",
+                    "auxpow": "{aux-pow-hex}"
+                }
             }
         }
     ]
