@@ -23,7 +23,6 @@
                     "Hash": "hash",
                     "ChainID": "chainid",
                     "Bits": "bits",
-                    "Target": "_target",
                     "Height": "height",
                     "PrevBlockHash": "previousblockhash",
                     "CoinbaseValue": "coinbasevalue"
@@ -53,7 +52,6 @@
                     "Hash": "hash",
                     "ChainID": "chainid",
                     "Bits": "bits",
-                    "Target": "_target",
                     "Height": "height",
                     "PrevBlockHash": "previousblockhash",
                     "CoinbaseValue": "coinbasevalue"
