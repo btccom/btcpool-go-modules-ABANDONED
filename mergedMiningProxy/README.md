@@ -278,10 +278,10 @@ curl -v --user admin:admin --data-binary '{"id":1,"method":"submitauxblock","par
 否则，返回
 
 ```
-{"id":1,"result":null,"error":{"code":400,"message":"high-diff"}}
+{"id":1,"result":null,"error":{"code":400,"message":"high-hash"}}
 ````
 
-如果发生其他错误，比如`block hash`未找到，或`aux pow`格式不正确等，则会返回对应的错误提示，格式类似上面的 `400 high-diff`。
+如果发生其他错误，比如`block hash`未找到，或`aux pow`格式不正确等，则会返回对应的错误提示，格式类似上面的 `400 high-hash`。
 例如：
 
 ```

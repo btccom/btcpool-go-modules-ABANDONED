@@ -265,7 +265,7 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 
 	if count < 1 {
 		glog.Warning("[SubmitAuxBlock] high diff! blockHash: ", auxPowData.blockHash.Hex(), "; minTarget: ", job.MinTarget.Hex())
-		response.Error = RPCError{400, "high-diff"}
+		response.Error = RPCError{400, "high-hash"}
 		return
 	}
 
