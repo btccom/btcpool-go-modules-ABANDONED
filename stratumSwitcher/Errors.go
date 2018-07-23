@@ -51,8 +51,8 @@ var (
 var (
 	// StratumErrNeedSubscribed 需要订阅
 	StratumErrNeedSubscribed = NewStratumError(101, "Need Subscribed")
-	// StratumErrNeedAuthorize 需要认证
-	StratumErrNeedAuthorize = NewStratumError(102, "Need Authorize")
+	// StratumErrDuplicateSubscribed 重复订阅
+	StratumErrDuplicateSubscribed = NewStratumError(102, "Duplicate Subscribed")
 	// StratumErrTooFewParams 参数太少
 	StratumErrTooFewParams = NewStratumError(103, "Too Few Params")
 	// StratumErrWorkerNameMustBeString 矿工名必须是字符串
@@ -64,4 +64,20 @@ var (
 	StratumErrStratumServerNotFound = NewStratumError(301, "Stratum Server Not Found")
 	// StratumErrConnectStratumServerFailed 对应币种的Stratum Server连接失败
 	StratumErrConnectStratumServerFailed = NewStratumError(302, "Connect Stratum Server Failed")
+
+	// StratumErrUnknownChainType 未知区块链类型
+	StratumErrUnknownChainType = NewStratumError(500, "Unknown Chain Type")
+)
+
+var (
+	// ErrReadFailed IO读错误
+	ErrReadFailed = errors.New("Read Failed")
+	// ErrWriteFailed IO写错误
+	ErrWriteFailed = errors.New("Write Failed")
+	// ErrInvalidReader 非法Reader
+	ErrInvalidReader = errors.New("Invalid Reader")
+	// ErrInvalidWritter 非法Writter
+	ErrInvalidWritter = errors.New("Invalid Writter")
+	// ErrInvalidBuffer 非法Buffer
+	ErrInvalidBuffer = errors.New("Invalid Buffer")
 )

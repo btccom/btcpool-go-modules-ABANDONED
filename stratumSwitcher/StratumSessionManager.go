@@ -1,7 +1,9 @@
 package main
 
 import (
+	"errors"
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/golang/glog"
@@ -39,21 +41,52 @@ type StratumSessionManager struct {
 	tcpListener net.Listener
 	// 无停机升级对象
 	upgradable *Upgradable
+	// 区块链类型
+	chainType ChainType
 	// 用于在错误信息中展示的serverID
 	serverID uint8
 }
 
 // NewStratumSessionManager 创建Stratum会话管理器
 func NewStratumSessionManager(conf ConfigData) (manager *StratumSessionManager, err error) {
+	var chainType ChainType
+	var indexBits uint8
+
+	switch strings.ToLower(conf.ChainType) {
+	case "bitcoin":
+		chainType = ChainTypeBitcoin
+		indexBits = 24
+		// bitcoin stratum uses JSON-RPC 1.0
+		SetJSONRPCVersion(1)
+		break
+	case "ethereum":
+		chainType = ChainTypeEthereum
+		indexBits = 16
+		// ethereum stratum uses JSON-RPC 2.0
+		SetJSONRPCVersion(2)
+		break
+	default:
+		err = errors.New("Unknown ChainType: " + conf.ChainType)
+		return
+	}
+
 	manager = new(StratumSessionManager)
 
 	manager.serverID = conf.ServerID
 	manager.sessions = make(StratumSessionMap)
-	manager.sessionIDManager = NewSessionIDManager(conf.ServerID)
 	manager.stratumServerInfoMap = conf.StratumServerMap
 	manager.zookeeperSwitcherWatchDir = conf.ZKSwitcherWatchDir
 	manager.tcpListenAddr = conf.ListenAddr
+	manager.chainType = chainType
+
+	manager.sessionIDManager, err = NewSessionIDManager(conf.ServerID, indexBits)
+	if err != nil {
+		return
+	}
 	manager.zookeeperManager, err = NewZookeeperManager(conf.ZKBroker)
+	if err != nil {
+		return
+	}
 
 	return
 }
@@ -115,12 +148,24 @@ func (manager *StratumSessionManager) RegisterStratumSession(session *StratumSes
 	manager.lock.Unlock()
 }
 
-// ReleaseStratumSession 释放Stratum会话（在Stratum会话停止时调用）
-func (manager *StratumSessionManager) ReleaseStratumSession(session *StratumSession) {
-	// 删除已注册的会话
+// UnRegisterStratumSession 解除Stratum会话注册（在Stratum会话重连时调用）
+func (manager *StratumSessionManager) UnRegisterStratumSession(session *StratumSession) {
 	manager.lock.Lock()
+	// 删除已注册的会话
 	delete(manager.sessions, session.sessionID)
 	manager.lock.Unlock()
+
+	// 从Zookeeper管理器中删除币种监控
+	manager.zookeeperManager.ReleaseW(session.zkWatchPath, session.sessionID)
+}
+
+// ReleaseStratumSession 释放Stratum会话（在Stratum会话停止时调用）
+func (manager *StratumSessionManager) ReleaseStratumSession(session *StratumSession) {
+	manager.lock.Lock()
+	// 删除已注册的会话
+	delete(manager.sessions, session.sessionID)
+	manager.lock.Unlock()
+
 	// 释放会话ID
 	manager.sessionIDManager.FreeSessionID(session.sessionID)
 	// 从Zookeeper管理器中删除币种监控
@@ -139,12 +184,14 @@ func (manager *StratumSessionManager) Run(runtimeData RuntimeData) {
 
 		// 恢复之前的TCP监听
 		// 可能会恢复失败。若恢复失败，则重新监听。
-		glog.Info("Resume TCP Listener: fd ", runtimeData.TCPListenerFD)
-		manager.tcpListener, err = newListenerFromFd(runtimeData.TCPListenerFD)
+		if runtimeData.TCPListenerFD != 0 {
+			glog.Info("Resume TCP Listener: fd ", runtimeData.TCPListenerFD)
+			manager.tcpListener, err = newListenerFromFd(runtimeData.TCPListenerFD)
 
-		if err != nil {
-			glog.Error("resume failed: ", err)
-			manager.tcpListener = nil
+			if err != nil {
+				glog.Error("resume failed: ", err)
+				manager.tcpListener = nil
+			}
 		}
 	}
 

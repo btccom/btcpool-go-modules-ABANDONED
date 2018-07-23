@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/hex"
+	"io"
 	"net"
 	"strconv"
+	"strings"
 )
 
 // IP2Long IP转整数
@@ -29,9 +31,90 @@ func Long2IP(ipLong uint32) string {
 	return b0 + "." + b1 + "." + b2 + "." + b3
 }
 
-// unit32 转 hex
+// Uint32ToHex unit32 转 hex
 func Uint32ToHex(num uint32) string {
 	bytesBuffer := bytes.NewBuffer([]byte{})
 	binary.Write(bytesBuffer, binary.BigEndian, num)
 	return hex.EncodeToString(bytesBuffer.Bytes())
+}
+
+// SubString 字符串截取
+// <http://outofmemory.cn/code-snippet/1365/Go-language-jiequ-string-function>
+func SubString(str string, start, length int) string {
+	rs := []rune(str)
+	rl := len(rs)
+	end := 0
+
+	if start < 0 {
+		start = rl - 1 + start
+	}
+	end = start + length
+
+	if start > end {
+		start, end = end, start
+	}
+
+	if start < 0 {
+		start = 0
+	}
+	if start > rl {
+		start = rl
+	}
+	if end < 0 {
+		end = 0
+	}
+	if end > rl {
+		end = rl
+	}
+
+	return string(rs[start:end])
+}
+
+// IOCopyBuffer 在写入失败时还能拿到Buffer的IO拷贝函数
+func IOCopyBuffer(dst io.Writer, src io.Reader, buf []byte) (bufferLen int, err error) {
+	if buf == nil {
+		err = ErrInvalidBuffer
+		return
+	}
+	if src == nil {
+		err = ErrInvalidReader
+		return
+	}
+	if dst == nil {
+		err = ErrInvalidWritter
+		return
+	}
+	for {
+		nr, er := src.Read(buf)
+		bufferLen = nr
+		if nr > 0 {
+			nw, ew := dst.Write(buf[0:nr])
+			if ew != nil {
+				err = ErrWriteFailed
+				break
+			}
+			if nr != nw {
+				err = ErrWriteFailed
+				break
+			}
+		}
+		if er != nil {
+			err = ErrReadFailed
+			break
+		}
+	}
+	return
+}
+
+// StripEthAddrFromFullName 从矿机名中去除不必要的以太坊钱包地址
+func StripEthAddrFromFullName(fullNameStr string) string {
+	pos := strings.Index(fullNameStr, ".")
+
+	// The Ethereum address is 42 bytes and starting with "0x" as normal
+	// Example: 0x00d8c82Eb65124Ea3452CaC59B64aCC230AA3482
+	if pos == 42 && fullNameStr[0] == '0' && (fullNameStr[1] == 'x' || fullNameStr[1] == 'X') {
+		return fullNameStr[pos+1:]
+	}
+
+	return fullNameStr
 }

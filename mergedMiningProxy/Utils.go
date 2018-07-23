@@ -48,3 +48,25 @@ func BitsToTarget(bits string) (target string, err error) {
 	target = fmt.Sprintf("%064s", targetBig.Text(16))
 	return
 }
+
+// DeepCopy 深度拷贝map和切片
+// 来自：https://studygolang.com/articles/8036
+func DeepCopy(value interface{}) interface{} {
+	if valueMap, ok := value.(map[string]interface{}); ok {
+		newMap := make(map[string]interface{})
+		for k, v := range valueMap {
+			newMap[k] = DeepCopy(v)
+		}
+		return newMap
+
+	} else if valueSlice, ok := value.([]interface{}); ok {
+		newSlice := make([]interface{}, len(valueSlice))
+		for k, v := range valueSlice {
+			newSlice[k] = DeepCopy(v)
+		}
+		return newSlice
+
+	}
+
+	return value
+}

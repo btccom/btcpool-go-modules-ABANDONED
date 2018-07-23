@@ -9,9 +9,9 @@
 ```bash
 mkdir ~/source
 cd ~/source
-wget http://storage.googleapis.com/golang/go1.9.2.linux-amd64.tar.gz
+wget http://storage.googleapis.com/golang/go1.10.3.linux-amd64.tar.gz
 cd /usr/local
-tar zxf ~/source/go1.9.2.linux-amd64.tar.gz
+tar zxf ~/source/go1.10.3.linux-amd64.tar.gz
 ln -s /usr/local/go/bin/go /usr/local/bin/go
 ```
 
@@ -20,13 +20,13 @@ ln -s /usr/local/go/bin/go /usr/local/bin/go
 ```bash
 mkdir -p /work/golang
 export GOPATH=/work/golang
-GIT_TERMINAL_PROMPT=1 go get github.com/btccom/stratumSwitcher/stratumSwitcher
+GIT_TERMINAL_PROMPT=1 go get github.com/btccom/btcpool-go-modules/stratumSwitcher
 ```
 
 生成安装包（可选）
 
 ```bash
-cd $GOPATH/src/github.com/btccom/stratumSwitcher/stratumSwitcher
+cd $GOPATH/src/github.com/btccom/btcpool-go-modules/stratumSwitcher
 mkdir build
 cd build
 cmake ..
@@ -38,7 +38,7 @@ make package
 ```bash
 mkdir /work/golang/stratumSwitcher
 mkdir /work/golang/stratumSwitcher/log
-cp /work/golang/src/github.com/btccom/stratumSwitcher/stratumSwitcher/config.default.json /work/golang/stratumSwitcher/config.json
+cp /work/golang/src/github.com/btccom/btcpool-go-modules/stratumSwitcher/config.default.json /work/golang/stratumSwitcher/config.json
 vim /work/golang/stratumSwitcher/config.json
 ```
 
@@ -80,8 +80,8 @@ supervisorctl status
 
 ```bash
 export GOPATH=/work/golang
-GIT_TERMINAL_PROMPT=1 go get -u github.com/btccom/stratumSwitcher/stratumSwitcher
-diff /work/golang/src/github.com/btccom/stratumSwitcher/stratumSwitcher/config.default.json /work/golang/stratumSwitcher/config.json
+GIT_TERMINAL_PROMPT=1 go get -u github.com/btccom/btcpool-go-modules/stratumSwitcher
+diff /work/golang/src/github.com/btccom/btcpool-go-modules/stratumSwitcher/config.default.json /work/golang/stratumSwitcher/config.json
 ```
 
 ##### 平滑重启/热更新（实验性）

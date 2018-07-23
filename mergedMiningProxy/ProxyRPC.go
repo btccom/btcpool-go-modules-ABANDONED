@@ -224,14 +224,25 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 				// 切片是对原字符串的引用
 				// 对切片中字符串的修改会直接改变 chain.SubmitAuxBlock.Params 中的值
 				// 所以这里拷贝一份
-				params := make([]interface{}, len(chain.SubmitAuxBlock.Params))
-				copy(params, chain.SubmitAuxBlock.Params)
 
-				for i := range params {
-					if str, ok := params[i].(string); ok {
-						str = strings.Replace(str, "{hash-hex}", extAuxPow.Hash.HexReverse(), -1)
-						str = strings.Replace(str, "{aux-pow-hex}", auxPowHex, -1)
-						params[i] = str
+				params := DeepCopy(chain.SubmitAuxBlock.Params)
+
+				if paramsArr, ok := params.([]interface{}); ok { // JSON-RPC 1.0 param array
+					for i := range paramsArr {
+						if str, ok := paramsArr[i].(string); ok {
+							str = strings.Replace(str, "{hash-hex}", extAuxPow.Hash.HexReverse(), -1)
+							str = strings.Replace(str, "{aux-pow-hex}", auxPowHex, -1)
+							paramsArr[i] = str
+						}
+					}
+
+				} else if paramsMap, ok := params.(map[string]interface{}); ok { // JSON-RPC 2.0 param object
+					for k := range paramsMap {
+						if str, ok := paramsMap[k].(string); ok {
+							str = strings.Replace(str, "{hash-hex}", extAuxPow.Hash.HexReverse(), -1)
+							str = strings.Replace(str, "{aux-pow-hex}", auxPowHex, -1)
+							paramsMap[k] = str
+						}
 					}
 				}
 
@@ -254,7 +265,7 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 
 	if count < 1 {
 		glog.Warning("[SubmitAuxBlock] high diff! blockHash: ", auxPowData.blockHash.Hex(), "; minTarget: ", job.MinTarget.Hex())
-		response.Error = RPCError{400, "high-diff"}
+		response.Error = RPCError{400, "high-hash"}
 		return
 	}
 

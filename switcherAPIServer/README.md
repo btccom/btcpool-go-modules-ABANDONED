@@ -193,9 +193,9 @@ curl -u admin:admin -d '{"usercoins":[{"coin":"btc","punames":["a","b","c"]},{"c
 ```bash
 mkdir ~/source
 cd ~/source
-wget http://storage.googleapis.com/golang/go1.9.2.linux-amd64.tar.gz
+wget http://storage.googleapis.com/golang/go1.10.3.linux-amd64.tar.gz
 cd /usr/local
-tar zxf ~/source/go1.9.2.linux-amd64.tar.gz
+tar zxf ~/source/go1.10.3.linux-amd64.tar.gz
 ln -s /usr/local/go/bin/go /usr/local/bin/go
 ```
 
@@ -204,7 +204,7 @@ ln -s /usr/local/go/bin/go /usr/local/bin/go
 ```bash
 mkdir -p /work/golang
 export GOPATH=/work/golang
-GIT_TERMINAL_PROMPT=1 go get github.com/btccom/stratumSwitcher/switcherAPIServer
+GIT_TERMINAL_PROMPT=1 go get github.com/btccom/btcpool-go-modules/switcherAPIServer
 ```
 
 编辑配置文件
@@ -212,7 +212,7 @@ GIT_TERMINAL_PROMPT=1 go get github.com/btccom/stratumSwitcher/switcherAPIServer
 ```bash
 mkdir /work/golang/switcherAPIServer
 mkdir /work/golang/switcherAPIServer/log
-cp /work/golang/src/github.com/btccom/stratumSwitcher/switcherAPIServer/config.default.json /work/golang/switcherAPIServer/config.json
+cp /work/golang/src/github.com/btccom/btcpool-go-modules/switcherAPIServer/config.default.json /work/golang/switcherAPIServer/config.json
 vim /work/golang/switcherAPIServer/config.json
 ```
 
@@ -248,6 +248,6 @@ supervisorctl status
 
 ```bash
 export GOPATH=/work/golang
-GIT_TERMINAL_PROMPT=1 go get -u github.com/btccom/stratumSwitcher/switcherAPIServer
-diff /work/golang/src/github.com/btccom/stratumSwitcher/switcherAPIServer/config.default.json /work/golang/switcherAPIServer/config.json
+GIT_TERMINAL_PROMPT=1 go get -u github.com/btccom/btcpool-go-modules/switcherAPIServer
+diff /work/golang/src/github.com/btccom/btcpool-go-modules/switcherAPIServer/config.default.json /work/golang/switcherAPIServer/config.json
 ```
