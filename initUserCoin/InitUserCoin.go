@@ -81,8 +81,8 @@ func InitUserCoin(coin string, url string) {
 			// 遍历用户币种列表
 			for puname, puid := range userIDMapResponse.Data {
 				if strings.Contains(puname, "_") {
-					glog.Info("skip puname with coin postfix: ", puname, " (", puid, "): ", coin)
-					continue
+					// remove coin postfix of puname
+					puname = puname[0:strings.LastIndex(puname, "_")]
 				}
 
 				err := setMiningCoin(puname, coin)
