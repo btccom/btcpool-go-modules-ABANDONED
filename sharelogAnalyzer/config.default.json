@@ -1,0 +1,14 @@
+{
+    "MiningIPStatistics": {
+        "Enable": true,
+        "ShareLogDirectory": "/work/btcpool/data/sharelog",
+        "ShareLogFilePattern": "sharelog-2006-01-02.bin",
+        "Database": {
+            "URI": "localhost:3306",
+            "UserName": "root",
+            "Password": "root",
+            "DBName": "bpool_analyzer_db",
+            "TableName": "mining_ip_statistics"
+        }
+    }
+}
