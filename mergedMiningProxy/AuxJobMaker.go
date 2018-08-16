@@ -2,6 +2,7 @@ package main
 
 import (
 	"container/list"
+	"encoding/hex"
 	"errors"
 	"sync"
 	"time"
@@ -50,6 +51,9 @@ type AuxJobMaker struct {
 	merkleNonce       uint32
 	merkleSize        uint32
 	chainIDIndexSlots map[uint32]uint32
+
+	minJobBits   string
+	maxJobTarget hash.Byte32
 }
 
 // NewAuxJobMaker 创建辅助挖矿任务构造器
@@ -59,6 +63,17 @@ func NewAuxJobMaker(config AuxJobMakerInfo, chains []ChainRPCInfo) (maker *AuxJo
 	maker.currentAuxBlocks = make(map[int]AuxBlockInfo)
 	maker.auxPowJobs = make(map[hash.Byte32]AuxPowJob)
 	maker.config = config
+
+	// set max job target and min job bits
+	if len(config.MaxJobTarget) != 64 {
+		// unlimited
+		config.MaxJobTarget = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+	}
+	hexBytes, _ := hex.DecodeString(config.MaxJobTarget)
+	maker.maxJobTarget.Assign(hexBytes)
+	maker.minJobBits, _ = TargetToBits(maker.maxJobTarget.Hex())
+	glog.Info("Max Job Target: ", maker.maxJobTarget.Hex(), ", Bits: ", maker.minJobBits)
+
 	return
 }
 
@@ -200,6 +215,12 @@ func (maker *AuxJobMaker) makeAuxJob() (job AuxPowJob, err error) {
 		auxPow.Target = block.Target
 		auxPow.BlockchainBranch = merkleTree.MerklePathForLeaf(slot)
 		job.AuxPows[index] = auxPow
+	}
+
+	if job.MaxTarget.Hex() > maker.maxJobTarget.Hex() {
+		glog.Info("Job target ", job.MaxTarget.Hex(), " too high, replaced to ", maker.maxJobTarget.Hex())
+		job.MaxTarget = maker.maxJobTarget
+		job.MinBits = maker.minJobBits
 	}
 
 	return

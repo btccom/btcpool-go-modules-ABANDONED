@@ -62,6 +62,7 @@ type ProxyRPCServer struct {
 type AuxJobMakerInfo struct {
 	CreateAuxBlockIntervalSeconds uint
 	AuxPowJobListSize             uint
+	MaxJobTarget                  string
 }
 
 // ConfigData 配置文件的数据结构

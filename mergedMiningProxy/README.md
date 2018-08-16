@@ -47,6 +47,7 @@ vim /work/golang/mergedMiningProxy/config.json
     "AuxJobMaker": {
         "CreateAuxBlockIntervalSeconds": 5, // 更新联合挖矿任务的频率（秒）
         "AuxPowJobListSize": 1000 // 保留的联合挖矿任务数（假设客户端每隔5秒调用一次本程序的getauxblock接口，则1000个任务是5000秒）
+        "MaxJobTarget": "00000000000000ffffffffffffffffffffffffffffffffffffffffffffffffff" // 可选，任务允许的最大Target（即最小难度）。如果任务Target大于该值（难度小于该值对应的难度），则用该值替换。用于控制难度非常低的链的出块速度。
     },
     "Chains": [
         // 可添加任意数量的链
