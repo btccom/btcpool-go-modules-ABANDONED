@@ -24,7 +24,7 @@ type AuxPowInfo struct {
 // AuxPowJob 合并挖矿的任务
 type AuxPowJob struct {
 	MinBits   string
-	MinTarget hash.Byte32
+	MaxTarget hash.Byte32
 
 	MerkleRoot  hash.Byte32
 	MerkleSize  uint32
@@ -171,7 +171,7 @@ func (maker *AuxJobMaker) makeAuxJob() (job AuxPowJob, err error) {
 	job.AuxPows = make(map[int]AuxPowInfo)
 	// set default value of Bits and Target
 	job.MinBits = maker.currentAuxBlocks[0].Bits
-	job.MinTarget = maker.currentAuxBlocks[0].Target
+	job.MaxTarget = maker.currentAuxBlocks[0].Target
 	// set fields that padding to response
 	job.PrevBlockHash = maker.currentAuxBlocks[0].PrevBlockHash
 	job.Height = maker.currentAuxBlocks[0].Height
@@ -183,8 +183,8 @@ func (maker *AuxJobMaker) makeAuxJob() (job AuxPowJob, err error) {
 		bottomRow[maker.chainIDIndexSlots[block.ChainID]] = block.Hash
 
 		// the hex of the target larger, the difficulty of the job smaller
-		if block.Target.Hex() > job.MinTarget.Hex() {
-			job.MinTarget = block.Target
+		if block.Target.Hex() > job.MaxTarget.Hex() {
+			job.MaxTarget = block.Target
 			job.MinBits = block.Bits
 		}
 	}

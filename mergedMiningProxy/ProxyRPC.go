@@ -152,13 +152,13 @@ func (handle *ProxyRPCHandle) createAuxBlock(response *RPCResponse) {
 	result.Hash = job.MerkleRoot.HexReverse()
 	result.Height = job.Height
 	result.PrevBlockHash = job.PrevBlockHash.Hex()
-	result.Target = job.MinTarget.HexReverse()
+	result.Target = job.MaxTarget.HexReverse()
 	result.MerkleSize = job.MerkleSize
 	result.MerkleNonce = job.MerkleNonce
 
 	glog.Info("[CreateAuxBlock] height:", result.Height,
 		", bits:", result.Bits,
-		", target:", job.MinTarget.Hex(),
+		", target:", job.MaxTarget.Hex(),
 		", coinbaseValue:", result.CoinbaseValue,
 		", hash:", job.MerkleRoot.Hex(),
 		", prevHash:", result.PrevBlockHash,
@@ -264,7 +264,7 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 	}
 
 	if count < 1 {
-		glog.Warning("[SubmitAuxBlock] high diff! blockHash: ", auxPowData.blockHash.Hex(), "; minTarget: ", job.MinTarget.Hex())
+		glog.Warning("[SubmitAuxBlock] high hash! blockHash: ", auxPowData.blockHash.Hex(), "; maxTarget: ", job.MaxTarget.Hex())
 		response.Error = RPCError{400, "high-hash"}
 		return
 	}
