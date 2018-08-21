@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"io"
 	"os"
+	"time"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/golang/glog"
@@ -29,6 +30,11 @@ type MiningIPStatistics struct {
 	ipMap             MiningIPMap
 	db                *sql.DB
 	stmtWriteIPRecord *sql.Stmt
+
+	// counter, only for logs. Don't need thread safe.
+	readShareNum      uint64
+	writeRecordNum    uint64
+	countingBeginTime int64
 }
 
 // NewMiningIPStatistics 创建挖矿IP统计器
@@ -36,6 +42,7 @@ func NewMiningIPStatistics(config MiningIPStatisticsConfig) (stats *MiningIPStat
 	stats = new(MiningIPStatistics)
 	stats.config = config
 	stats.ipMap = make(MiningIPMap)
+	stats.resetCounter()
 
 	dbConfig := config.Database
 	stats.db, err = sql.Open("mysql", dbConfig.UserName+":"+dbConfig.Password+"@tcp("+dbConfig.URI+")/"+dbConfig.DBName+"?charset=utf8")
@@ -45,6 +52,18 @@ func NewMiningIPStatistics(config MiningIPStatisticsConfig) (stats *MiningIPStat
 
 	err = stats.prepareDBQueries()
 	return
+}
+
+func (stat *MiningIPStatistics) resetCounter() {
+	stat.readShareNum = 0
+	stat.writeRecordNum = 0
+	stat.countingBeginTime = time.Now().Unix()
+}
+
+// PrintCountingLog 打印统计日志
+func (stat *MiningIPStatistics) PrintCountingLog() {
+	t := time.Now().Unix() - stat.countingBeginTime
+	glog.Info("read ", stat.readShareNum, " shares, write ", stat.writeRecordNum, " records in ", t, " seconds")
 }
 
 func (stat *MiningIPStatistics) prepareDBQueries() (err error) {
@@ -60,6 +79,8 @@ func (stat *MiningIPStatistics) writeIPRecord(workerID int64, record MiningIPRec
 	_, err = stat.stmtWriteIPRecord.Exec(record.puid, workerID, Long2IP(record.ipv4), record.beginTime, record.endTime, record.shareDiffSum)
 	if err != nil {
 		glog.Error("Write IP record failed: ", err)
+	} else {
+		stat.writeRecordNum++
 	}
 
 	return
@@ -67,8 +88,19 @@ func (stat *MiningIPStatistics) writeIPRecord(workerID int64, record MiningIPRec
 
 func (stat *MiningIPStatistics) openFile() (err error) {
 	stat.shareLogFilePath = GetCurrentShareLogFile(stat.config.ShareLogDirectory, stat.config.ShareLogFilePattern)
+	glog.Info("open sharelog: ", stat.shareLogFilePath)
 	stat.shareLogReader, err = os.Open(stat.shareLogFilePath)
 	return
+}
+
+// RunCountingThread 运行统计线程
+func (stat *MiningIPStatistics) RunCountingThread() {
+	stat.resetCounter()
+	for {
+		time.Sleep(10 * time.Second)
+		stat.PrintCountingLog()
+		stat.resetCounter()
+	}
 }
 
 // Run 运行挖矿IP统计器
@@ -83,6 +115,8 @@ func (stat *MiningIPStatistics) Run() {
 
 	err = share.Load(stat.shareLogReader)
 	for err == nil {
+		stat.readShareNum++
+
 		workerID := share.GetWorkerID()
 		record, ok := stat.ipMap[workerID]
 		if !ok {
@@ -93,12 +127,13 @@ func (stat *MiningIPStatistics) Run() {
 			record.ipv4 = share.GetIPv4()
 			record.shareDiffSum = share.GetShareDiff()
 			// 首次发现该矿机，写入记录
-			stat.writeIPRecord(workerID, record)
+			// 为了性能考虑，不写入。等待最后再写入
+			//stat.writeIPRecord(workerID, record)
 		} else {
 			// 更新
 			ipv4 := share.GetIPv4()
-			if ipv4 != record.ipv4 {
-				// IP地址改变，写入记录
+			if ipv4 != record.ipv4 || share.GetTime()-record.endTime > stat.config.MaxAliveIntervalSeconds {
+				// IP地址改变或矿机长时间不活跃，写入记录
 				stat.writeIPRecord(workerID, record)
 				// 更新/重置部分字段
 				record.beginTime = share.GetTime()
@@ -116,7 +151,7 @@ func (stat *MiningIPStatistics) Run() {
 		err = share.Load(stat.shareLogReader)
 	}
 
-	glog.Info("read share finished: ", err)
+	glog.Info("read sharelog finished: ", err)
 
 	// 写入剩余的记录
 	for workerID, record := range stat.ipMap {

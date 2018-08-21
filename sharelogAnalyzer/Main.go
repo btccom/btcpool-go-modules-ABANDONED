@@ -26,6 +26,9 @@ func main() {
 			glog.Fatal("init Mining IP Statistics failed: ", err)
 			return
 		}
+		go stat.RunCountingThread()
 		stat.Run()
+		// 显示Run()结束后未来得及显示的统计日志
+		stat.PrintCountingLog()
 	}
 }

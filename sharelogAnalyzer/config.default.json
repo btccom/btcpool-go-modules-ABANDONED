@@ -3,6 +3,7 @@
         "Enable": true,
         "ShareLogDirectory": "/work/btcpool/data/sharelog",
         "ShareLogFilePattern": "sharelog-2006-01-02.bin",
+        "MaxAliveIntervalSeconds": 18000,
         "Database": {
             "URI": "localhost:3306",
             "UserName": "root",

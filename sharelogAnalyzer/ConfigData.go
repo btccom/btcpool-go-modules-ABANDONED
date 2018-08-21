@@ -16,10 +16,11 @@ type DatabaseConfig struct {
 
 // MiningIPStatisticsConfig 挖矿IP统计配置项
 type MiningIPStatisticsConfig struct {
-	Enable              bool
-	ShareLogDirectory   string
-	ShareLogFilePattern string
-	Database            DatabaseConfig
+	Enable                  bool
+	ShareLogDirectory       string
+	ShareLogFilePattern     string
+	MaxAliveIntervalSeconds uint64
+	Database                DatabaseConfig
 }
 
 // ConfigData 配置项
