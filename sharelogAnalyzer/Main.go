@@ -21,7 +21,11 @@ func main() {
 	}
 
 	if configData.MiningIPStatistics.Enable {
-		stat := NewMiningIPStatistics(configData.MiningIPStatistics)
+		stat, err := NewMiningIPStatistics(configData.MiningIPStatistics)
+		if err != nil {
+			glog.Fatal("init Mining IP Statistics failed: ", err)
+			return
+		}
 		stat.Run()
 	}
 }
