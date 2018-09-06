@@ -23,9 +23,10 @@ type SessionIDManager struct {
 	serverID   uint32
 	sessionIDs *bitset.BitSet
 
-	count    uint32 // how many ids are used now
-	allocIDx uint32
-	lock     sync.Mutex
+	count         uint32 // how many ids are used now
+	allocIDx      uint32
+	allocInterval uint32
+	lock          sync.Mutex
 
 	indexBits uint8 // bits of session index id
 	// SessionIDMask 会话ID掩码，用于分离serverID和sessionID
@@ -56,10 +57,20 @@ func NewSessionIDManager(serverID uint8, indexBits uint8) (manager *SessionIDMan
 	manager.serverID = uint32(serverID) << indexBits
 	manager.sessionIDs = bitset.New(uint(manager.sessionIDMask))
 	manager.count = 0
-	manager.allocIDx = 0
+	// 设置一个与sserver不同的初始值，以便尽早发现 session ID 不一致
+	// (sserver忘记启用WORK_WITH_STRATUM_SWITCHER编译选项)的问题
+	manager.allocIDx = 100
+	manager.allocInterval = 0
 
 	manager.sessionIDs.ClearAll()
 	return
+}
+
+// setAllocInterval 设置分配id的间隔
+// 该功能可在无DoS风险的情况下为会话临时保留更多的挖矿空间
+// (目前用于与NiceHash以太坊客户端取得兼容)
+func (manager *SessionIDManager) setAllocInterval(interval uint32) {
+	manager.allocInterval = interval
 }
 
 // isFull 判断会话ID是否已满（内部使用，不加锁）
@@ -100,6 +111,7 @@ func (manager *SessionIDManager) AllocSessionID() (sessionID uint32, err error) 
 
 	sessionID = manager.serverID | manager.allocIDx
 	err = nil
+	manager.allocIDx += manager.allocInterval
 	return
 }
 

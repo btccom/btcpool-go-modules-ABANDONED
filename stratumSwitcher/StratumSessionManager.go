@@ -88,6 +88,12 @@ func NewStratumSessionManager(conf ConfigData) (manager *StratumSessionManager, 
 		return
 	}
 
+	if manager.chainType == ChainTypeEthereum {
+		// 由于SessionID是预分配的，为了与要求extraNonce不超过2字节的NiceHash以太坊客户端取得兼容，
+		// 默认采用较大的ID分配间隔，以减少挖矿空间重叠的影响。
+		manager.sessionIDManager.setAllocInterval(256)
+	}
+
 	return
 }
 

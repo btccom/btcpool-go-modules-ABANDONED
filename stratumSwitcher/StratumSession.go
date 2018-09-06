@@ -15,6 +15,9 @@ import (
 // BTCAgent的客户端类型前缀
 const btcAgentClientTypePrefix = "btccom-agent/"
 
+// NiceHash的客户端类型前缀
+const niceHashClientTypePrefix = "nicehash/"
+
 // NiceHash Ethereum Stratum Protocol 的协议类型前缀
 const ethereumStratumNiceHashPrefix = "ethereumstratum/"
 
@@ -96,6 +99,8 @@ type StratumSession struct {
 	protocolType ProtocolType
 	// 是否为BTCAgent
 	isBTCAgent bool
+	// 是否为NiceHash客户端
+	isNiceHashClient bool
 
 	// 是否在运行
 	runningStat RunningStat
@@ -403,6 +408,14 @@ func (session *StratumSession) parseSubscribeRequest(request *JSONRPCRequest) (r
 		return
 
 	case ChainTypeEthereum:
+		if len(request.Params) >= 1 {
+			userAgent, ok := session.stratumSubscribeRequest.Params[0].(string)
+			// 判断是否为NiceHash客户端
+			if ok && strings.HasPrefix(strings.ToLower(userAgent), niceHashClientTypePrefix) {
+				session.isNiceHashClient = true
+			}
+		}
+
 		// only ProtocolEthereumStratum and ProtocolEthereumStratumNiceHash has the "mining.subscribe" phase
 		session.protocolType = ProtocolEthereumStratum
 		result = true
@@ -414,8 +427,14 @@ func (session *StratumSession) parseSubscribeRequest(request *JSONRPCRequest) (r
 			if ok && strings.HasPrefix(strings.ToLower(protocol), ethereumStratumNiceHashPrefix) {
 				session.protocolType = ProtocolEthereumStratumNiceHash
 
+				extraNonce := session.sessionIDString
+				if session.isNiceHashClient {
+					// NiceHash以太坊客户端目前仅支持不超过2字节的ExtraNonce
+					extraNonce = extraNonce[0:4]
+				}
+
 				// message example: {"id":1,"jsonrpc":"2.0","result":[["mining.notify","01003f","EthereumStratum/1.0.0"],"01003f"],"error":null}
-				result = JSONRPCArray{JSONRPCArray{"mining.notify", session.sessionIDString, ethereumStratumNiceHashVersion}, session.sessionIDString}
+				result = JSONRPCArray{JSONRPCArray{"mining.notify", session.sessionIDString, ethereumStratumNiceHashVersion}, extraNonce}
 			}
 		}
 		return
@@ -748,7 +767,23 @@ func (session *StratumSession) connectStratumServer() error {
 				return ErrParseSubscribeResponseFailed
 			}
 
-			sessionID, ok := result[1].(string)
+			notify, ok := result[0].([]interface{})
+			if !ok {
+				glog.Warning("Parse Subscribe Response Failed: result[0] is not a array")
+				return ErrParseSubscribeResponseFailed
+			}
+
+			sessionID, ok := notify[1].(string)
+			if !ok {
+				glog.Warning("Parse Subscribe Response Failed: result[0][1] is not a string")
+				return ErrParseSubscribeResponseFailed
+			}
+
+			sessionExtraNonce := session.sessionIDString
+			if session.isNiceHashClient {
+				sessionExtraNonce = sessionExtraNonce[0:4]
+			}
+			extraNonce, ok := result[1].(string)
 			if !ok {
 				glog.Warning("Parse Subscribe Response Failed: result[1] is not a string")
 				return ErrParseSubscribeResponseFailed
@@ -757,6 +792,10 @@ func (session *StratumSession) connectStratumServer() error {
 			// 服务器返回的 sessionID 与当前保存的不一致，此时挖到的所有share都会是无效的，断开连接
 			if sessionID != session.sessionIDString {
 				glog.Warning("Session ID Mismatched:  ", sessionID, " != ", session.sessionIDString)
+				return ErrSessionIDInconformity
+			}
+			if extraNonce != sessionExtraNonce {
+				glog.Warning("ExtraNonce Mismatched:  ", extraNonce, " != ", sessionExtraNonce)
 				return ErrSessionIDInconformity
 			}
 
