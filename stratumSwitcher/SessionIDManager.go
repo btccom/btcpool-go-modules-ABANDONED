@@ -32,10 +32,6 @@ type SessionIDManager struct {
 	// SessionIDMask 会话ID掩码，用于分离serverID和sessionID
 	// 也是sessionID部分可以达到的最大数值
 	sessionIDMask uint32
-
-	// MaxValidSessionID 最大的合法sessionID
-	// should less than sessionIDMask
-	maxValidSessionID uint32
 }
 
 // NewSessionIDManager 创建一个会话ID管理器实例
@@ -52,14 +48,13 @@ func NewSessionIDManager(serverID uint8, indexBits uint8) (manager *SessionIDMan
 	manager = new(SessionIDManager)
 
 	manager.sessionIDMask = (1 << indexBits) - 1
-	manager.maxValidSessionID = manager.sessionIDMask - 1
 
 	manager.serverID = uint32(serverID) << indexBits
-	manager.sessionIDs = bitset.New(uint(manager.sessionIDMask))
+	manager.sessionIDs = bitset.New(uint(manager.sessionIDMask + 1))
 	manager.count = 0
 	// 设置一个与sserver不同的初始值，以便尽早发现 session ID 不一致
 	// (sserver忘记启用WORK_WITH_STRATUM_SWITCHER编译选项)的问题
-	manager.allocIDx = 100
+	manager.allocIDx = 128
 	manager.allocInterval = 0
 
 	manager.sessionIDs.ClearAll()
@@ -75,7 +70,7 @@ func (manager *SessionIDManager) setAllocInterval(interval uint32) {
 
 // isFull 判断会话ID是否已满（内部使用，不加锁）
 func (manager *SessionIDManager) isFullWithoutLock() bool {
-	return (manager.count >= manager.sessionIDMask)
+	return (manager.count > manager.sessionIDMask)
 }
 
 // IsFull 判断会话ID是否已满
@@ -99,10 +94,7 @@ func (manager *SessionIDManager) AllocSessionID() (sessionID uint32, err error) 
 
 	// find an empty bit
 	for manager.sessionIDs.Test(uint(manager.allocIDx)) {
-		manager.allocIDx++
-		if manager.allocIDx > manager.maxValidSessionID {
-			manager.allocIDx = 0
-		}
+		manager.allocIDx = (manager.allocIDx + 1) & manager.sessionIDMask
 	}
 
 	// set to true
@@ -111,7 +103,7 @@ func (manager *SessionIDManager) AllocSessionID() (sessionID uint32, err error) 
 
 	sessionID = manager.serverID | manager.allocIDx
 	err = nil
-	manager.allocIDx += manager.allocInterval
+	manager.allocIDx = (manager.allocIDx + manager.allocInterval) & manager.sessionIDMask
 	return
 }
 
@@ -133,7 +125,7 @@ func (manager *SessionIDManager) ResumeSessionID(sessionID uint32) (err error) {
 	manager.count++
 
 	if manager.allocIDx <= idx {
-		manager.allocIDx = idx + 1
+		manager.allocIDx = idx + manager.allocInterval
 	}
 
 	err = nil
