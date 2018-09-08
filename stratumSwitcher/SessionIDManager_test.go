@@ -142,7 +142,7 @@ func TestSessionIDManager16BitsWithInterval(t *testing.T) {
 	// repeat 10 times
 	for roll := 0; roll < 10; roll++ {
 
-		sessionIDs := bitset.New(uint(0x00010000))
+		sessionIDs := bitset.New(uint(0x100000000))
 
 		// fill all session ids
 		{
