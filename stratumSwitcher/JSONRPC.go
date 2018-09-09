@@ -21,23 +21,53 @@ type JSONRPCResponse struct {
 	Error  interface{} `json:"error"`
 }
 
+// JSONRPC2Error error object of json-rpc 2.0
+type JSONRPC2Error struct {
+	Code    int         `json:"code"`
+	Message string      `json:"message"`
+	Data    interface{} `json:"data,omitempty"`
+}
+
+// NewJSONRPC2Error create json-rpc 2.0 error object from json-1.0 error object
+func NewJSONRPC2Error(v1Err interface{}) (err *JSONRPC2Error) {
+	if v1Err == nil {
+		return nil
+	}
+
+	errArr, ok := v1Err.(JSONRPCArray)
+	if !ok {
+		return nil
+	}
+
+	err = new(JSONRPC2Error)
+	if len(errArr) >= 1 {
+		code, ok := errArr[0].(int)
+		if ok {
+			err.Code = code
+		}
+	}
+	if len(errArr) >= 2 {
+		message, ok := errArr[1].(string)
+		if ok {
+			err.Message = message
+		}
+	}
+	if len(errArr) >= 3 {
+		err.Data = errArr[2]
+	}
+	return
+}
+
 // JSONRPC2Response response message of json-rpc 2.0
 type JSONRPC2Response struct {
-	JSONRPC string `json:"jsonrpc,omitempty"`
-	JSONRPCResponse
+	ID      interface{}    `json:"id"`
+	JSONRPC string         `json:"jsonrpc"`
+	Result  interface{}    `json:"result,omitempty"`
+	Error   *JSONRPC2Error `json:"error,omitempty"`
 }
 
 // JSONRPCArray JSON RPC 数组
 type JSONRPCArray []interface{}
-
-// jsonRPCVersion version of JSON-RPC response
-var jsonRPCVersion uint8 = 1
-
-// SetJSONRPCVersion set the value of "jsonrpc" field in response.
-// Pass empty string if want to omit it.
-func SetJSONRPCVersion(version uint8) {
-	jsonRPCVersion = version
-}
 
 // NewJSONRPCRequest 解析 JSON RPC 请求字符串并创建 JSONRPCRequest 对象
 func NewJSONRPCRequest(rpcJSON []byte) (*JSONRPCRequest, error) {
@@ -79,11 +109,11 @@ func (rpcData *JSONRPCResponse) SetResult(result interface{}) {
 }
 
 // ToJSONBytes 将 JSONRPCResponse 对象转换为 JSON 字节序列
-func (rpcData *JSONRPCResponse) ToJSONBytes() ([]byte, error) {
-	if jsonRPCVersion == 1 {
+func (rpcData *JSONRPCResponse) ToJSONBytes(version int) ([]byte, error) {
+	if version == 1 {
 		return json.Marshal(rpcData)
 	}
 
-	rpc2Data := JSONRPC2Response{"2.0", *rpcData}
+	rpc2Data := JSONRPC2Response{rpcData.ID, "2.0", rpcData.Result, NewJSONRPC2Error(rpcData.Error)}
 	return json.Marshal(rpc2Data)
 }

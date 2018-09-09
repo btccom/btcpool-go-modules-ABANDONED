@@ -101,6 +101,8 @@ type StratumSession struct {
 	isBTCAgent bool
 	// 是否为NiceHash客户端
 	isNiceHashClient bool
+	// JSON-RPC的版本
+	jsonRPCVersion int
 
 	// 是否在运行
 	runningStat RunningStat
@@ -140,6 +142,8 @@ type StratumSession struct {
 // NewStratumSession 创建一个新的 Stratum 会话
 func NewStratumSession(manager *StratumSessionManager, clientConn net.Conn, sessionID uint32) (session *StratumSession) {
 	session = new(StratumSession)
+
+	session.jsonRPCVersion = 1
 
 	session.runningStat = StatStoped
 	session.manager = manager
@@ -525,6 +529,8 @@ func (session *StratumSession) stratumHandleRequest(request *JSONRPCRequest, sta
 		if session.protocolType == ProtocolEthereumProxy {
 			session.makeSubscribeMessageForEthProxy()
 			*stat = StatSubScribed
+			// ETHProxy uses JSON-RPC 2.0
+			session.jsonRPCVersion = 2
 		}
 		fallthrough
 	case "mining.authorize":
@@ -1277,7 +1283,7 @@ func (session *StratumSession) readLineFromServerWithTimeout(timeout time.Durati
 }
 
 func (session *StratumSession) writeJSONResponseToClient(jsonData *JSONRPCResponse) (int, error) {
-	bytes, err := jsonData.ToJSONBytes()
+	bytes, err := jsonData.ToJSONBytes(session.jsonRPCVersion)
 
 	if err != nil {
 		return 0, err
