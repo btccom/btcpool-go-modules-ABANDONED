@@ -761,7 +761,28 @@ func (session *StratumSession) connectStratumServer() error {
 		// 检查服务器返回的订阅结果
 		switch session.protocolType {
 		case ProtocolBitcoinStratum:
-			fallthrough
+			result, ok := response.Result.([]interface{})
+			if !ok {
+				glog.Warning("Parse Subscribe Response Failed: result is not an array")
+				return ErrParseSubscribeResponseFailed
+			}
+			if len(result) < 2 {
+				glog.Warning("Field too Few of Subscribe Response Result: ", result)
+				return ErrParseSubscribeResponseFailed
+			}
+
+			sessionID, ok := result[1].(string)
+			if !ok {
+				glog.Warning("Parse Subscribe Response Failed: result[1] is not a string")
+				return ErrParseSubscribeResponseFailed
+			}
+
+			// 服务器返回的 sessionID 与当前保存的不一致，此时挖到的所有share都会是无效的，断开连接
+			if sessionID != session.sessionIDString {
+				glog.Warning("Session ID Mismatched:  ", sessionID, " != ", session.sessionIDString)
+				return ErrSessionIDInconformity
+			}
+
 		case ProtocolEthereumStratumNiceHash:
 			result, ok := response.Result.([]interface{})
 			if !ok {
