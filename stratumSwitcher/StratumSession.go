@@ -889,6 +889,10 @@ func (session *StratumSession) connectStratumServer() error {
 			break
 		}
 
+		if glog.V(3) {
+			glog.Info("Authorize failed with ", authWorkerName)
+		}
+
 		// 还是没有成功，sleep 3秒
 		time.Sleep(time.Duration(3) * time.Second)
 	}
@@ -1138,6 +1142,10 @@ func (session *StratumSession) tryReconnect(currentReconnectCounter uint32) bool
 		session.setStatNonLock(StatReconnecting)
 		session.reconnectCounter++
 
+		if glog.V(3) {
+			glog.Info("Reconnect Server: ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
+		}
+
 		session.reconnectStratumServer(retryTimeWhenServerDown)
 		return true
 	}
@@ -1211,6 +1219,9 @@ func (session *StratumSession) reconnectStratumServer(retryTime int) {
 		}
 	}
 	if err != nil {
+		if glog.V(2) {
+			glog.Info("Reconnect Server Failed: ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin, "; ", err)
+		}
 		go session.Stop()
 		return
 	}
@@ -1220,6 +1231,10 @@ func (session *StratumSession) reconnectStratumServer(retryTime int) {
 
 	// 转入纯代理模式
 	go session.proxyStratum()
+
+	if glog.V(2) {
+		glog.Info("Reconnect Server Success: ", session.clientIPPort, "; ", session.fullWorkerName, "; ", session.miningCoin)
+	}
 }
 
 func peekWithTimeout(reader *bufio.Reader, len int, timeout time.Duration) ([]byte, error) {
