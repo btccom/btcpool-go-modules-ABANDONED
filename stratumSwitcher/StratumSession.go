@@ -976,15 +976,17 @@ func (session *StratumSession) proxyStratum() {
 		// 记录当前的币种切换计数
 		currentReconnectCounter := session.getReconnectCounter()
 
-		bufLen := session.serverReader.Buffered()
-		// 将bufio中的剩余内容写入对端
-		if bufLen > 0 {
-			buf := make([]byte, bufLen)
-			session.serverReader.Read(buf)
-			session.clientConn.Write(buf)
+		if session.serverReader != nil {
+			bufLen := session.serverReader.Buffered()
+			// 将bufio中的剩余内容写入对端
+			if bufLen > 0 {
+				buf := make([]byte, bufLen)
+				session.serverReader.Read(buf)
+				session.clientConn.Write(buf)
+			}
+			// 释放bufio
+			session.serverReader = nil
 		}
-		// 释放bufio
-		session.serverReader = nil
 		// 简单的流复制
 		buffer := make([]byte, bufioReaderBufSize)
 		_, err := IOCopyBuffer(session.clientConn, session.serverConn, buffer)
@@ -1007,15 +1009,17 @@ func (session *StratumSession) proxyStratum() {
 		// 记录当前的币种切换计数
 		currentReconnectCounter := session.getReconnectCounter()
 
-		bufLen := session.clientReader.Buffered()
-		// 将bufio中的剩余内容写入对端
-		if bufLen > 0 {
-			buf := make([]byte, bufLen)
-			session.clientReader.Read(buf)
-			session.serverConn.Write(buf)
+		if session.clientReader != nil {
+			bufLen := session.clientReader.Buffered()
+			// 将bufio中的剩余内容写入对端
+			if bufLen > 0 {
+				buf := make([]byte, bufLen)
+				session.clientReader.Read(buf)
+				session.serverConn.Write(buf)
+			}
+			// 释放bufio
+			session.clientReader = nil
 		}
-		// 释放bufio
-		session.clientReader = nil
 		// 简单的流复制
 		buffer := make([]byte, bufioReaderBufSize)
 		bufferLen, err := IOCopyBuffer(session.serverConn, session.clientConn, buffer)
