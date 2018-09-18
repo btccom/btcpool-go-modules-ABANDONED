@@ -140,7 +140,7 @@ func (manager *StratumSessionManager) ResumeStratumSession(sessionData StratumSe
 	}
 
 	session := NewStratumSession(manager, clientConn, sessionData.SessionID)
-	go session.Resume(sessionData, serverConn)
+	session.Resume(sessionData, serverConn)
 }
 
 // RegisterStratumSession 注册Stratum会话（在Stratum会话开始正常代理之后调用）
