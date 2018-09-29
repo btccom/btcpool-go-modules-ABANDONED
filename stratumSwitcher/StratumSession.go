@@ -710,6 +710,8 @@ func (session *StratumSession) connectStratumServer() error {
 	runningStat := session.getStatNonLock()
 	// 寻找币种对应的服务器
 	serverInfo, ok := session.manager.stratumServerInfoMap[session.miningCoin]
+	// 比特币AsicBoost版本掩码
+	var allowedVersionMask uint32
 
 	var rpcID interface{}
 	if session.stratumAuthorizeRequest != nil {
@@ -747,8 +749,6 @@ func (session *StratumSession) connectStratumServer() error {
 
 	// 发送版本轮转请求
 	if session.versionMask != 0 {
-		var allowedVersionMask uint32
-
 		request := JSONRPCRequest{
 			1,
 			"mining.configure",
@@ -775,14 +775,11 @@ func (session *StratumSession) connectStratumServer() error {
 			}
 		}
 
-		// 发送 version mask 更新
 		allowedVersionMask &= session.versionMask
-		notify := JSONRPCRequest{
-			nil,
-			"mining.set_version_mask",
-			JSONRPCArray{fmt.Sprintf("%08x", allowedVersionMask)},
-			""}
-		session.writeJSONRequestToClient(&notify)
+
+		// version mask 更新将在认证成功后发送。
+		// 之所以要在此处获取服务器的 version mask，是因为一但认证成功，
+		// 服务器就开始连续发送任务，难以从中分离出对version mask的响应。
 	}
 
 	userAgent := "stratumSwitcher"
@@ -1011,6 +1008,16 @@ func (session *StratumSession) connectStratumServer() error {
 	if !authSuccess {
 		glog.Warning("Authorize Failed: ", authWorkerName, "; ", session.miningCoin)
 		return ErrAuthorizeFailed
+	}
+
+	// 发送 version mask 更新
+	if session.versionMask != 0 {
+		notify := JSONRPCRequest{
+			nil,
+			"mining.set_version_mask",
+			JSONRPCArray{fmt.Sprintf("%08x", allowedVersionMask)},
+			""}
+		session.writeJSONRequestToClient(&notify)
 	}
 
 	glog.Info("Authorize Success: ", session.clientIPPort, "; ", session.miningCoin, "; ", authWorkerName, "; ", authWorkerPasswd, "; ", userAgent, "; ", protocol)
