@@ -546,22 +546,15 @@ func (session *StratumSession) parseConfigureRequest(request *JSONRPCRequest) (r
 
 	if session.versionMask != 0 {
 		versionMask := fmt.Sprintf("%08x", session.versionMask)
-		response := JSONRPCResponse{
-			request.ID,
-			JSONRPCObj{
-				"version-rolling":      true,
-				"version-rolling.mask": versionMask},
-			nil}
-		session.writeJSONResponseToClient(&response)
-
-		// 该消息将在连接服务器后发送，以便由服务器提供真正支持的版本掩码
-		/*notify := JSONRPCRequest{
-			nil,
-			"mining.set_version_mask",
-			JSONRPCArray{versionMask},
-			""}
-		session.writeJSONRequestToClient(&notify)*/
+		// 这里响应的是虚假的版本掩码。在连接服务器后将通过 mining.set_version_mask
+		// 更新为真实的版本掩码。
+		result = JSONRPCObj{
+			"version-rolling":      true,
+			"version-rolling.mask": versionMask}
+		return
 	}
+
+	// 未知配置内容，不响应
 	return
 }
 
