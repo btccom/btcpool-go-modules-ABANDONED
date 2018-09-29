@@ -3,7 +3,9 @@ package main
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -38,6 +40,9 @@ const findWorkerNameTimeoutSeconds = 60
 
 // 服务器响应subscribe消息的超时时间
 const readSubscribeResponseTimeoutSeconds = 10
+
+// 服务器响应mining.configure消息的超时时间
+const readConfigureResponseTimeoutSeconds = 1
 
 // 纯代理模式下接收消息的超时时间
 // 若长时间接收不到消息，就无法及时处理对端已断开事件，
@@ -103,6 +108,8 @@ type StratumSession struct {
 	isNiceHashClient bool
 	// JSON-RPC的版本
 	jsonRPCVersion int
+	// 比特币版本掩码(用于AsicBoost)
+	versionMask uint32
 
 	// 是否在运行
 	runningStat RunningStat
@@ -249,8 +256,10 @@ func (session *StratumSession) Resume(sessionData StratumSessionData, serverConn
 	// 恢复服务器连接
 	session.serverConn = serverConn
 	session.serverReader = bufio.NewReaderSize(serverConn, bufioReaderBufSize)
-
 	stat := StatConnected
+
+	// 恢复版本位
+	session.versionMask = sessionData.VersionMask
 
 	if sessionData.StratumSubscribeRequest != nil {
 		_, stratumErr := session.stratumHandleRequest(sessionData.StratumSubscribeRequest, &stat)
@@ -512,6 +521,50 @@ func (session *StratumSession) parseAuthorizeRequest(request *JSONRPCRequest) (r
 	return
 }
 
+func (session *StratumSession) parseConfigureRequest(request *JSONRPCRequest) (result interface{}, err *StratumError) {
+	// request:
+	//		{"id":3,"method":"mining.configure","params":[["version-rolling"],{"version-rolling.mask":"1fffe000","version-rolling.min-bit-count":2}]}
+	// response:
+	//		{"id":3,"result":{"version-rolling":true,"version-rolling.mask":"1fffe000"},"error":null}
+	//		{"id":null,"method":"mining.set_version_mask","params":["1fffe000"]}
+
+	if len(request.Params) < 2 {
+		err = StratumErrTooFewParams
+		return
+	}
+
+	if options, ok := request.Params[1].(map[string]interface{}); ok {
+		if versionMaskI, ok := options["version-rolling.mask"]; ok {
+			if versionMaskStr, ok := versionMaskI.(string); ok {
+				versionMask, err := strconv.ParseUint(versionMaskStr, 16, 32)
+				if err == nil {
+					session.versionMask = uint32(versionMask)
+				}
+			}
+		}
+	}
+
+	if session.versionMask != 0 {
+		versionMask := fmt.Sprintf("%08x", session.versionMask)
+		response := JSONRPCResponse{
+			request.ID,
+			JSONRPCObj{
+				"version-rolling":      true,
+				"version-rolling.mask": versionMask},
+			nil}
+		session.writeJSONResponseToClient(&response)
+
+		// 该消息将在连接服务器后发送，以便由服务器提供真正支持的版本掩码
+		/*notify := JSONRPCRequest{
+			nil,
+			"mining.set_version_mask",
+			JSONRPCArray{versionMask},
+			""}
+		session.writeJSONRequestToClient(&notify)*/
+	}
+	return
+}
+
 func (session *StratumSession) stratumHandleRequest(request *JSONRPCRequest, stat *AuthorizeStat) (result interface{}, err *StratumError) {
 	switch request.Method {
 	case "mining.subscribe":
@@ -541,6 +594,12 @@ func (session *StratumSession) stratumHandleRequest(request *JSONRPCRequest, sta
 		result, err = session.parseAuthorizeRequest(request)
 		if err == nil {
 			*stat = StatAuthorized
+		}
+		return
+
+	case "mining.configure":
+		if session.protocolType == ProtocolBitcoinStratum {
+			result, err = session.parseConfigureRequest(request)
 		}
 		return
 
@@ -631,7 +690,7 @@ func (session *StratumSession) findMiningCoin() error {
 		}
 
 		var response JSONRPCResponse
-		response.Error = NewStratumError(201, "Cannot Found Minning Coin Type").ToJSONRPCArray(session.manager.serverID)
+		response.Error = NewStratumError(201, "Invalid Sub-account Name").ToJSONRPCArray(session.manager.serverID)
 		if session.stratumAuthorizeRequest != nil {
 			response.ID = session.stratumAuthorizeRequest.ID
 		}
@@ -685,6 +744,46 @@ func (session *StratumSession) connectStratumServer() error {
 
 	session.serverConn = serverConn
 	session.serverReader = bufio.NewReaderSize(serverConn, bufioReaderBufSize)
+
+	// 发送版本轮转请求
+	if session.versionMask != 0 {
+		var allowedVersionMask uint32
+
+		request := JSONRPCRequest{
+			1,
+			"mining.configure",
+			JSONRPCArray{
+				JSONRPCArray{"version-rolling"},
+				JSONRPCObj{"version-rolling.mask": "ffffffff"}}, // 探测允许的最大 version mask
+			""}
+		session.writeJSONRequestToServer(&request)
+
+		_, err := session.readLineFromServerWithTimeout(readConfigureResponseTimeoutSeconds * time.Second)
+		// mining.configure的响应，不需要查看
+		if err == nil {
+			jsonStr, err := session.readLineFromServerWithTimeout(readConfigureResponseTimeoutSeconds * time.Second)
+			if err == nil {
+				notify, err := NewJSONRPCRequest(jsonStr)
+				if err == nil && notify.Method == "mining.set_version_mask" && len(notify.Params) >= 1 {
+					if versionMaskStr, ok := notify.Params[0].(string); ok {
+						mask, err := strconv.ParseUint(versionMaskStr, 16, 32)
+						if err == nil {
+							allowedVersionMask = uint32(mask)
+						}
+					}
+				}
+			}
+		}
+
+		// 发送 version mask 更新
+		allowedVersionMask &= session.versionMask
+		notify := JSONRPCRequest{
+			nil,
+			"mining.set_version_mask",
+			JSONRPCArray{fmt.Sprintf("%08x", allowedVersionMask)},
+			""}
+		session.writeJSONRequestToClient(&notify)
+	}
 
 	userAgent := "stratumSwitcher"
 	protocol := "Stratum"
@@ -1320,6 +1419,17 @@ func (session *StratumSession) readLineFromClientWithTimeout(timeout time.Durati
 
 func (session *StratumSession) readLineFromServerWithTimeout(timeout time.Duration) ([]byte, error) {
 	return readLineWithTimeout(session.serverReader, timeout)
+}
+
+func (session *StratumSession) writeJSONRequestToClient(jsonData *JSONRPCRequest) (int, error) {
+	bytes, err := jsonData.ToJSONBytes()
+
+	if err != nil {
+		return 0, err
+	}
+
+	defer session.clientConn.Write([]byte{'\n'})
+	return session.clientConn.Write(bytes)
 }
 
 func (session *StratumSession) writeJSONResponseToClient(jsonData *JSONRPCResponse) (int, error) {

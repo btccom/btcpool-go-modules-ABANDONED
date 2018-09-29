@@ -71,6 +71,9 @@ type StratumSessionData struct {
 
 	StratumSubscribeRequest *JSONRPCRequest
 	StratumAuthorizeRequest *JSONRPCRequest
+
+	// 比特币AsicBoost挖矿版本掩码
+	VersionMask uint32 `json:",omitempty"`
 }
 
 // RuntimeData 运行时数据

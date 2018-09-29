@@ -69,6 +69,9 @@ type JSONRPC2Response struct {
 // JSONRPCArray JSON RPC 数组
 type JSONRPCArray []interface{}
 
+// JSONRPCObj JSON RPC 对象
+type JSONRPCObj map[string]interface{}
+
 // NewJSONRPCRequest 解析 JSON RPC 请求字符串并创建 JSONRPCRequest 对象
 func NewJSONRPCRequest(rpcJSON []byte) (*JSONRPCRequest, error) {
 	rpcData := new(JSONRPCRequest)
