@@ -746,7 +746,7 @@ func (session *StratumSession) sendMiningConfigureToServer() (err error) {
 
 	// 请求 version mask
 	request := JSONRPCRequest{
-		1,
+		"configure",
 		"mining.configure",
 		JSONRPCArray{
 			JSONRPCArray{"version-rolling"},
@@ -757,13 +757,9 @@ func (session *StratumSession) sendMiningConfigureToServer() (err error) {
 }
 
 // 发送 mining.subscribe
-func (session *StratumSession) sendMiningSubscribeToServer() (err error) {
-	if session.stratumSubscribeRequest == nil {
-		return
-	}
-
-	userAgent := "stratumSwitcher"
-	protocol := "Stratum"
+func (session *StratumSession) sendMiningSubscribeToServer() (userAgent string, protocol string, err error) {
+	userAgent = "stratumSwitcher"
+	protocol = "Stratum"
 
 	// 拷贝一个对象
 	request := session.stratumSubscribeRequest
@@ -814,7 +810,8 @@ func (session *StratumSession) sendMiningSubscribeToServer() (err error) {
 
 	default:
 		glog.Fatal("Unimplemented Stratum Protocol: ", session.protocolType)
-		return ErrParseSubscribeResponseFailed
+		err = ErrParseSubscribeResponseFailed
+		return
 	}
 
 	// 发送mining.subscribe请求给服务器
@@ -827,34 +824,30 @@ func (session *StratumSession) sendMiningSubscribeToServer() (err error) {
 }
 
 // 发送 mining.subscribe
-func (session *StratumSession) sendMiningAuthorizeToServer() (err error) {
-	// 无币种后缀的矿工名
-	fullWorkerName := session.fullWorkerName
-	// 带币种后缀的矿机名
-	fullWorkerNameWithCoinPostfix := session.subaccountName + "_" + session.miningCoin + session.minerNameWithDot
+func (session *StratumSession) sendMiningAuthorizeToServer(withSuffix bool) (authWorkerName string, authWorkerPasswd string, err error) {
+	if withSuffix {
+		// 带币种后缀的矿机名
+		authWorkerName = session.subaccountName + "_" + session.miningCoin + session.minerNameWithDot
+	} else {
+		// 无币种后缀的矿工名
+		authWorkerName = session.fullWorkerName
+	}
 
 	var request JSONRPCRequest
-
 	request.Method = session.stratumAuthorizeRequest.Method
 	request.Params = make([]interface{}, len(session.stratumAuthorizeRequest.Params))
 	// 深拷贝，防止这里参数的更改影响到session.stratumAuthorizeRequest的内容
 	copy(request.Params, session.stratumAuthorizeRequest.Params)
 
-	// 带币种后缀和不带币种后缀的认证请求一起发送，总有一个会返回成功。另一个返回失败，无所谓
-
-	// 设置为无币种后缀的矿工名
-	request.Params[0] = fullWorkerName
-	request.ID = "auth.nofix"
-	// 发送第一个mining.authorize请求给服务器
-	_, err = session.writeJSONRequestToServer(&request)
-	if err != nil {
-		return
+	// 矿机发来的密码，仅用于返回
+	if len(request.Params) >= 2 {
+		authWorkerPasswd, _ = request.Params[1].(string)
 	}
 
-	// 设置为带币种后缀的矿工名
-	request.Params[0] = fullWorkerNameWithCoinPostfix
-	request.ID = "auth.suffix"
-	// 发送第二个mining.authorize请求给服务器
+	// 设置为无币种后缀的矿工名
+	request.Params[0] = authWorkerName
+	request.ID = "auth"
+	// 发送mining.authorize请求给服务器
 	_, err = session.writeJSONRequestToServer(&request)
 	return
 }
@@ -865,11 +858,11 @@ func (session *StratumSession) serverSubscribeAndAuthorize() (err error) {
 	if err != nil {
 		return
 	}
-	session.sendMiningSubscribeToServer()
+	userAgent, protocol, err := session.sendMiningSubscribeToServer()
 	if err != nil {
 		return
 	}
-	session.sendMiningAuthorizeToServer()
+	authWorkerName, authWorkerPasswd, err := session.sendMiningAuthorizeToServer(false)
 	if err != nil {
 		return
 	}
@@ -885,8 +878,8 @@ func (session *StratumSession) serverSubscribeAndAuthorize() (err error) {
 		authMsgCounter := 0
 		authSuccess := false
 
-		// 循环结束说明认证成功
-		for authMsgCounter >= 2 {
+		// 循环结束说明认证完成
+		for authMsgCounter < 2 {
 			json, err := session.serverReader.ReadBytes('\n')
 
 			if err != nil {
@@ -896,14 +889,25 @@ func (session *StratumSession) serverSubscribeAndAuthorize() (err error) {
 
 			// 服务器返回的JSON RPC响应
 			response, err := NewJSONRPCResponse(json)
-			if err == nil {
+			// JSON解析在类型完全不匹配时也不会失败。ID为空说明是notify
+			if err == nil && response.ID != nil {
 				err = session.stratumHandleServerResponse(response, &authMsgCounter, &authSuccess, &authResponse)
 				if err != nil {
 					e <- err
 					return
 				}
+
+				// 首次认证(无币种后缀)不成功，发送第二次认证请求(带币种后缀)
+				if !authSuccess && authMsgCounter == 1 {
+					authWorkerName, authWorkerPasswd, err = session.sendMiningAuthorizeToServer(true)
+					if err != nil {
+						e <- err
+						return
+					}
+				}
+				continue
 			}
-			if glog.V(3) {
+			if err != nil && glog.V(3) {
 				glog.Info("JSON RPC Response decode failed: ", err.Error(), string(json))
 			}
 
@@ -915,8 +919,9 @@ func (session *StratumSession) serverSubscribeAndAuthorize() (err error) {
 					e <- err
 					return
 				}
+				continue
 			}
-			if glog.V(3) {
+			if err != nil && glog.V(3) {
 				glog.Info("JSON RPC Request decode failed: ", err.Error(), string(json))
 			}
 		} // for
@@ -930,8 +935,8 @@ func (session *StratumSession) serverSubscribeAndAuthorize() (err error) {
 		}
 
 		// 发送 version mask 更新
-		allowedVersionMask &= session.versionMask
-		if session.versionMask != 0 {
+		if authSuccess && session.versionMask != 0 {
+			allowedVersionMask &= session.versionMask
 			notify := JSONRPCRequest{
 				nil,
 				"mining.set_version_mask",
@@ -955,10 +960,15 @@ func (session *StratumSession) serverSubscribeAndAuthorize() (err error) {
 	select {
 	case err = <-e:
 		if err != nil {
-			glog.Warning(err)
-		}
-		if glog.V(2) {
-			glog.Info("Authorize Success: ", session.clientIPPort, "; ", session.miningCoin /*, "; ", authWorkerName, "; ", authWorkerPasswd, "; ", userAgent, "; ", protocol*/)
+			if glog.V(2) {
+				glog.Warning("Authorize Failed: ", session.clientIPPort, "; ", session.miningCoin, "; ",
+					authWorkerName, "; ", authWorkerPasswd, "; ", userAgent, "; ", protocol, "; ", err)
+			}
+		} else {
+			if glog.V(2) {
+				glog.Info("Authorize Success: ", session.clientIPPort, "; ", session.miningCoin, "; ",
+					authWorkerName, "; ", authWorkerPasswd, "; ", userAgent, "; ", protocol)
+			}
 		}
 
 	case <-time.After(readServerResponseTimeoutSeconds * time.Second):
@@ -990,15 +1000,17 @@ func (session *StratumSession) stratumHandleServerResponse(response *JSONRPCResp
 	id, ok := response.ID.(string)
 	if !ok {
 		glog.Warning("Server Response ID is Not a String: ", response)
+		return
 	}
 
 	switch id {
+	case "configure":
+		// ignore
+
 	case "subscribe":
 		err = session.stratumHandleServerSubscribeResponse(response)
 
-	case "auth.suffix":
-		fallthrough
-	case "auth.nofix":
+	case "auth":
 		*authMsgCounter++
 		success := session.stratumHandleServerAuthorizeResponse(response)
 		if success || !(*authSuccess) {
@@ -1006,6 +1018,7 @@ func (session *StratumSession) stratumHandleServerResponse(response *JSONRPCResp
 		}
 		if success {
 			*authSuccess = true
+			*authMsgCounter = 2 // 认证已成功，不再需要发送后续认证请求
 		}
 	}
 	return
