@@ -542,12 +542,11 @@ func (session *StratumSession) parseConfigureRequest(request *JSONRPCRequest) (r
 	}
 
 	if session.versionMask != 0 {
-		versionMask := fmt.Sprintf("%08x", session.versionMask)
 		// 这里响应的是虚假的版本掩码。在连接服务器后将通过 mining.set_version_mask
 		// 更新为真实的版本掩码。
 		result = JSONRPCObj{
 			"version-rolling":      true,
-			"version-rolling.mask": versionMask}
+			"version-rolling.mask": session.getVersionMaskStr()}
 		return
 	}
 
@@ -750,7 +749,7 @@ func (session *StratumSession) sendMiningConfigureToServer() (err error) {
 		"mining.configure",
 		JSONRPCArray{
 			JSONRPCArray{"version-rolling"},
-			JSONRPCObj{"version-rolling.mask": fmt.Sprintf("%08x", session.versionMask)}},
+			JSONRPCObj{"version-rolling.mask": session.getVersionMaskStr()}},
 		""}
 	_, err = session.writeJSONRequestToServer(&request)
 	return
@@ -962,12 +961,14 @@ func (session *StratumSession) serverSubscribeAndAuthorize() (err error) {
 		if err != nil {
 			if glog.V(2) {
 				glog.Warning("Authorize Failed: ", session.clientIPPort, "; ", session.miningCoin, "; ",
-					authWorkerName, "; ", authWorkerPasswd, "; ", userAgent, "; ", protocol, "; ", err)
+					authWorkerName, "; ", authWorkerPasswd, "; ", userAgent, ";",
+					session.getVersionMaskStr(), "; ", protocol, "; ", err)
 			}
 		} else {
 			if glog.V(2) {
 				glog.Info("Authorize Success: ", session.clientIPPort, "; ", session.miningCoin, "; ",
-					authWorkerName, "; ", authWorkerPasswd, "; ", userAgent, "; ", protocol)
+					authWorkerName, "; ", authWorkerPasswd, "; ", userAgent, "; ",
+					session.getVersionMaskStr(), "; ", protocol)
 			}
 		}
 
@@ -1511,4 +1512,8 @@ func (session *StratumSession) writeJSONRequestToServer(jsonData *JSONRPCRequest
 
 	defer session.serverConn.Write([]byte{'\n'})
 	return session.serverConn.Write(bytes)
+}
+
+func (session *StratumSession) getVersionMaskStr() string {
+	return fmt.Sprintf("%08x", session.versionMask)
 }
