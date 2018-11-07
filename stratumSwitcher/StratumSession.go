@@ -750,7 +750,7 @@ func (session *StratumSession) sendMiningConfigureToServer() (err error) {
 		"mining.configure",
 		JSONRPCArray{
 			JSONRPCArray{"version-rolling"},
-			JSONRPCObj{"version-rolling.mask": "ffffffff"}}, // 探测允许的最大 version mask
+			JSONRPCObj{"version-rolling.mask": fmt.Sprintf("%08x", session.versionMask)}},
 		""}
 	_, err = session.writeJSONRequestToServer(&request)
 	return
