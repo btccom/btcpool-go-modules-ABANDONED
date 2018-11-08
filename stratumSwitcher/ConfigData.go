@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"io/ioutil"
+
+	"github.com/golang/glog"
 )
 
 // ChainType 区块链类型
@@ -41,6 +43,15 @@ func (conf *ConfigData) LoadFromFile(file string) (err error) {
 	// 若zookeeper路径不以“/”结尾，则添加
 	if conf.ZKSwitcherWatchDir[len(conf.ZKSwitcherWatchDir)-1] != '/' {
 		conf.ZKSwitcherWatchDir += "/"
+	}
+
+	// 若UserSuffix为空，设为与币种相同
+	for k, v := range conf.StratumServerMap {
+		if v.UserSuffix == "" {
+			v.UserSuffix = k
+			conf.StratumServerMap[k] = v
+		}
+		glog.Info("Chain: ", k, ", UserSuffix: ", conf.StratumServerMap[k].UserSuffix)
 	}
 
 	return
