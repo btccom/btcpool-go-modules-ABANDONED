@@ -418,17 +418,24 @@ func (session *StratumSession) parseSubscribeRequest(request *JSONRPCRequest) (r
 		return
 
 	case ChainTypeEthereum:
+		// only ProtocolEthereumStratum and ProtocolEthereumStratumNiceHash has the "mining.subscribe" phase
+		session.protocolType = ProtocolEthereumStratum
+
 		if len(request.Params) >= 1 {
 			userAgent, ok := session.stratumSubscribeRequest.Params[0].(string)
-			// 判断是否为NiceHash客户端
-			if ok && strings.HasPrefix(strings.ToLower(userAgent), niceHashClientTypePrefix) {
-				session.isNiceHashClient = true
+			if ok {
+				// 判断是否为NiceHash客户端
+				if strings.HasPrefix(strings.ToLower(userAgent), niceHashClientTypePrefix) {
+					session.isNiceHashClient = true
+				}
+				// 判断是否为BTCAgent
+				if strings.HasPrefix(strings.ToLower(userAgent), btcAgentClientTypePrefix) {
+					session.isBTCAgent = true
+					session.protocolType = ProtocolEthereumStratumNiceHash
+				}
 			}
 		}
 
-		// only ProtocolEthereumStratum and ProtocolEthereumStratumNiceHash has the "mining.subscribe" phase
-		session.protocolType = ProtocolEthereumStratum
-		result = true
 		if len(request.Params) >= 2 {
 			// message example: {"id":1,"method":"mining.subscribe","params":["ethminer 0.15.0rc1","EthereumStratum/1.0.0"]}
 			protocol, ok := session.stratumSubscribeRequest.Params[1].(string)
@@ -436,16 +443,19 @@ func (session *StratumSession) parseSubscribeRequest(request *JSONRPCRequest) (r
 			// 判断是否为"EthereumStratum/xxx"
 			if ok && strings.HasPrefix(strings.ToLower(protocol), ethereumStratumNiceHashPrefix) {
 				session.protocolType = ProtocolEthereumStratumNiceHash
-
-				extraNonce := session.sessionIDString
-				if session.isNiceHashClient {
-					// NiceHash以太坊客户端目前仅支持不超过2字节的ExtraNonce
-					extraNonce = extraNonce[0:4]
-				}
-
-				// message example: {"id":1,"jsonrpc":"2.0","result":[["mining.notify","01003f","EthereumStratum/1.0.0"],"01003f"],"error":null}
-				result = JSONRPCArray{JSONRPCArray{"mining.notify", session.sessionIDString, ethereumStratumNiceHashVersion}, extraNonce}
 			}
+		}
+
+		result = true
+		if session.protocolType == ProtocolEthereumStratumNiceHash {
+			extraNonce := session.sessionIDString
+			if session.isNiceHashClient {
+				// NiceHash以太坊客户端目前仅支持不超过2字节的ExtraNonce
+				extraNonce = extraNonce[0:4]
+			}
+
+			// message example: {"id":1,"jsonrpc":"2.0","result":[["mining.notify","01003f","EthereumStratum/1.0.0"],"01003f"],"error":null}
+			result = JSONRPCArray{JSONRPCArray{"mining.notify", session.sessionIDString, ethereumStratumNiceHashVersion}, extraNonce}
 		}
 		return
 
