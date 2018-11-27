@@ -4,7 +4,9 @@
     "ListenAddr": "0.0.0.0:18080",
     "StratumServerMap": {
         "btc": { "URL": "127.0.0.1:3333" },
-        "bcc": { "URL": "127.0.0.1:4444" }
+        "bcc": { "URL": "127.0.0.1:3334" },
+        "bcc2btc": { "URL": "127.0.0.1:3335", "UserSuffix": "btc" },
+        "btc2bcc": { "URL": "127.0.0.1:3336", "UserSuffix": "bcc" }
     },
     "ZKBroker": [ "127.0.0.1:2181" ],
     "ZKSwitcherWatchDir": "/stratumSwitcher/btcbcc/",

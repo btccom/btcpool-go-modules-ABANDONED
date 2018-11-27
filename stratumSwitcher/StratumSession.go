@@ -832,11 +832,21 @@ func (session *StratumSession) sendMiningSubscribeToServer() (userAgent string, 
 	return
 }
 
+// 获取认证时添加的子账户名后缀
+func (session *StratumSession) getUserSuffix() string {
+	serverInfo, ok := session.manager.stratumServerInfoMap[session.miningCoin]
+	if !ok {
+		return session.miningCoin
+	}
+
+	return serverInfo.UserSuffix
+}
+
 // 发送 mining.subscribe
 func (session *StratumSession) sendMiningAuthorizeToServer(withSuffix bool) (authWorkerName string, authWorkerPasswd string, err error) {
 	if withSuffix {
 		// 带币种后缀的矿机名
-		authWorkerName = session.subaccountName + "_" + session.miningCoin + session.minerNameWithDot
+		authWorkerName = session.subaccountName + "_" + session.getUserSuffix() + session.minerNameWithDot
 	} else {
 		// 无币种后缀的矿工名
 		authWorkerName = session.fullWorkerName
