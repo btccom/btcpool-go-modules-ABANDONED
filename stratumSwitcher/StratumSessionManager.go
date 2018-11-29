@@ -1,12 +1,17 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"net"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/golang/glog"
+	"github.com/samuel/go-zookeeper/zk"
+	"github.com/willf/bitset"
 )
 
 // StratumServerInfo Stratum服务器的信息
@@ -89,11 +94,21 @@ func NewStratumSessionManager(conf ConfigData) (manager *StratumSessionManager, 
 	manager.tcpListenAddr = conf.ListenAddr
 	manager.chainType = chainType
 
-	manager.sessionIDManager, err = NewSessionIDManager(conf.ServerID, indexBits)
+	manager.zookeeperManager, err = NewZookeeperManager(conf.ZKBroker)
 	if err != nil {
 		return
 	}
-	manager.zookeeperManager, err = NewZookeeperManager(conf.ZKBroker)
+
+	if manager.serverID == 0 {
+		// 尝试从zookeeper分配ID
+		manager.serverID, err = manager.AssignServerIDFromZK(conf.ZKServerIDAssignDir)
+		if err != nil {
+			err = errors.New("Cannot assign server id from zk: " + err.Error())
+			return
+		}
+	}
+
+	manager.sessionIDManager, err = NewSessionIDManager(manager.serverID, indexBits)
 	if err != nil {
 		return
 	}
@@ -105,6 +120,78 @@ func NewStratumSessionManager(conf ConfigData) (manager *StratumSessionManager, 
 	}
 
 	return
+}
+
+// AssignServerIDFromZK 从Zookeeper分配服务器ID
+func (manager *StratumSessionManager) AssignServerIDFromZK(assignDir string) (serverID uint8, err error) {
+	manager.zookeeperManager.createZookeeperPath(assignDir)
+
+	parent := assignDir[:len(assignDir)-1]
+	var children []string
+	children, _, err = manager.zookeeperManager.zookeeperConn.Children(parent)
+	if err != nil {
+		return
+	}
+
+	childrenSet := bitset.New(256)
+	childrenSet.Set(0) // id 0 不可分配
+	// 将已分配的id记录到bitset中
+	for _, idStr := range children {
+		idInt, convErr := strconv.Atoi(idStr)
+		if convErr != nil {
+			glog.Warning("AssignServerIDFromZK: strconv.Atoi(", idStr, ") failed. errmsg: ", convErr)
+			continue
+		}
+		if idInt < 1 || idInt > 255 {
+			glog.Warning("AssignServerIDFromZK: found out of range id in zk: ", idStr)
+			continue
+		}
+		childrenSet.Set(uint(idInt))
+	}
+
+	// 构造写入分配节点的元信息
+	type SwitcherMetaData struct {
+		ChainType  string
+		Coins      []string
+		IPs        []string
+		HostName   string
+		ListenAddr string
+	}
+	var data SwitcherMetaData
+	data.ChainType = manager.chainType.ToString()
+	data.HostName, _ = os.Hostname()
+	data.ListenAddr = manager.tcpListenAddr
+	for coin := range manager.stratumServerInfoMap {
+		data.Coins = append(data.Coins, coin)
+	}
+	if ips, err := net.InterfaceAddrs(); err == nil {
+		for _, ip := range ips {
+			data.IPs = append(data.IPs, ip.String())
+		}
+	}
+
+	dataJSON, _ := json.Marshal(data)
+
+	// 寻找并尝试可分配的id
+	var idIndex uint = 1
+	for {
+		newID, success := childrenSet.NextClear(idIndex)
+		if !success {
+			err = errors.New("server id is full")
+			return
+		}
+
+		nodePath := assignDir + strconv.Itoa(int(newID))
+		_, err = manager.zookeeperManager.zookeeperConn.Create(nodePath, dataJSON, zk.FlagEphemeral, zk.WorldACL(zk.PermAll))
+		if err != nil {
+			glog.Warning("AssignServerIDFromZK: create ", nodePath, " failed. errmsg: ", err)
+			continue
+		}
+
+		glog.Info("AssignServerIDFromZK: got server id ", newID, " (", nodePath, ")")
+		serverID = uint8(newID)
+		return
+	}
 }
 
 // RunStratumSession 运行一个Stratum会话

@@ -1,5 +1,5 @@
 {
-    "ServerID": 1,
+    "ServerID": 0,
     "ChainType": "bitcoin",
     "ListenAddr": "0.0.0.0:18080",
     "StratumServerMap": {
@@ -9,6 +9,7 @@
         "btc2bcc": { "URL": "127.0.0.1:3336", "UserSuffix": "bcc" }
     },
     "ZKBroker": [ "127.0.0.1:2181" ],
+    "ZKServerIDAssignDir": "/stratumSwitcher/bitcoin_swid/",
     "ZKSwitcherWatchDir": "/stratumSwitcher/btcbcc/",
     "EnableUserAutoReg": true,
     "ZKAutoRegWatchDir": "/stratumSwitcher/bitcoin_autoreg/",

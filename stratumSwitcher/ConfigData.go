@@ -17,6 +17,18 @@ const (
 	ChainTypeEthereum
 )
 
+// ToString 转换为字符串
+func (chainType ChainType) ToString() string {
+	switch chainType {
+	case ChainTypeBitcoin:
+		return "bitcoin"
+	case ChainTypeEthereum:
+		return "ethereum"
+	default:
+		return "unknown"
+	}
+}
+
 // ConfigData 配置数据
 type ConfigData struct {
 	ServerID                   uint8
@@ -24,11 +36,12 @@ type ConfigData struct {
 	ListenAddr                 string
 	StratumServerMap           StratumServerInfoMap
 	ZKBroker                   []string
+	ZKServerIDAssignDir        string // 以斜杠结尾
 	ZKSwitcherWatchDir         string // 以斜杠结尾
 	EnableUserAutoReg          bool
 	ZKAutoRegWatchDir          string // 以斜杠结尾
 	AutoRegMaxWaitUsers        int64
-	ZKUserCaseInsensitiveIndex string
+	ZKUserCaseInsensitiveIndex string // 以斜杠结尾
 	EnableHTTPDebug            bool
 	HTTPDebugListenAddr        string
 }
@@ -45,6 +58,9 @@ func (conf *ConfigData) LoadFromFile(file string) (err error) {
 	err = json.Unmarshal(configJSON, conf)
 
 	// 若zookeeper路径不以“/”结尾，则添加
+	if conf.ZKServerIDAssignDir[len(conf.ZKServerIDAssignDir)-1] != '/' {
+		conf.ZKServerIDAssignDir += "/"
+	}
 	if conf.ZKSwitcherWatchDir[len(conf.ZKSwitcherWatchDir)-1] != '/' {
 		conf.ZKSwitcherWatchDir += "/"
 	}
