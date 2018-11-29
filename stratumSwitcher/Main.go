@@ -39,7 +39,7 @@ func main() {
 		}()
 	}
 
-	sessionManager, err := NewStratumSessionManager(configData)
+	sessionManager, err := NewStratumSessionManager(configData, runtimeData)
 	if err != nil {
 		glog.Fatal("create session manager failed: ", err)
 		return

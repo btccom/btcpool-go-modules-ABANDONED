@@ -28,18 +28,7 @@ func (upgradable *Upgradable) upgradeStratumSwitcher() (err error) {
 
 	var runtimeData RuntimeData
 	runtimeData.Action = "upgrade"
-
-	// 保留旧TCPListenerFD时偶尔会失败，所以
-	// 不再尝试保留旧的TCPListenerFD，而是每次都重新监听
-
-	/*runtimeData.TCPListenerFD, err = getListenerFd(upgradable.sessionManager.tcpListener)
-	if err != nil {
-		return
-	}
-	err = setNoCloseOnExec(runtimeData.TCPListenerFD)
-	if err != nil {
-		return
-	}*/
+	runtimeData.ServerID = upgradable.sessionManager.serverID
 
 	upgradable.sessionManager.lock.Lock()
 	err = func() error {

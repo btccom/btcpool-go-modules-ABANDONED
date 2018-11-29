@@ -115,9 +115,9 @@ type StratumSessionData struct {
 
 // RuntimeData 运行时数据
 type RuntimeData struct {
-	Action        string
-	TCPListenerFD uintptr
-	SessionDatas  []StratumSessionData
+	Action       string
+	ServerID     uint8
+	SessionDatas []StratumSessionData
 }
 
 // LoadFromFile 从文件载入配置

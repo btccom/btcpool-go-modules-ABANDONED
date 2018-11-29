@@ -63,7 +63,7 @@ type StratumSessionManager struct {
 }
 
 // NewStratumSessionManager 创建Stratum会话管理器
-func NewStratumSessionManager(conf ConfigData) (manager *StratumSessionManager, err error) {
+func NewStratumSessionManager(conf ConfigData, runtimeData RuntimeData) (manager *StratumSessionManager, err error) {
 	var chainType ChainType
 	var indexBits uint8
 
@@ -101,7 +101,7 @@ func NewStratumSessionManager(conf ConfigData) (manager *StratumSessionManager, 
 
 	if manager.serverID == 0 {
 		// 尝试从zookeeper分配ID
-		manager.serverID, err = manager.AssignServerIDFromZK(conf.ZKServerIDAssignDir)
+		manager.serverID, err = manager.AssignServerIDFromZK(conf.ZKServerIDAssignDir, runtimeData.ServerID)
 		if err != nil {
 			err = errors.New("Cannot assign server id from zk: " + err.Error())
 			return
@@ -123,7 +123,7 @@ func NewStratumSessionManager(conf ConfigData) (manager *StratumSessionManager, 
 }
 
 // AssignServerIDFromZK 从Zookeeper分配服务器ID
-func (manager *StratumSessionManager) AssignServerIDFromZK(assignDir string) (serverID uint8, err error) {
+func (manager *StratumSessionManager) AssignServerIDFromZK(assignDir string, oldServerID uint8) (serverID uint8, err error) {
 	manager.zookeeperManager.createZookeeperPath(assignDir)
 
 	parent := assignDir[:len(assignDir)-1]
@@ -173,7 +173,7 @@ func (manager *StratumSessionManager) AssignServerIDFromZK(assignDir string) (se
 	dataJSON, _ := json.Marshal(data)
 
 	// 寻找并尝试可分配的id
-	var idIndex uint = 1
+	idIndex := uint(oldServerID)
 	for {
 		newID, success := childrenSet.NextClear(idIndex)
 		if !success {
@@ -284,30 +284,15 @@ func (manager *StratumSessionManager) Run(runtimeData RuntimeData) {
 		for _, sessionData := range runtimeData.SessionDatas {
 			manager.ResumeStratumSession(sessionData)
 		}
-
-		// 恢复之前的TCP监听
-		// 可能会恢复失败。若恢复失败，则重新监听。
-		if runtimeData.TCPListenerFD != 0 {
-			glog.Info("Resume TCP Listener: fd ", runtimeData.TCPListenerFD)
-			manager.tcpListener, err = newListenerFromFd(runtimeData.TCPListenerFD)
-
-			if err != nil {
-				glog.Error("resume failed: ", err)
-				manager.tcpListener = nil
-			}
-		}
 	}
 
-	// 全新监听，或在恢复监听失败时重新监听
-	if manager.tcpListener == nil {
-		// TCP监听
-		glog.Info("Listen TCP ", manager.tcpListenAddr)
-		manager.tcpListener, err = net.Listen("tcp", manager.tcpListenAddr)
+	// TCP监听
+	glog.Info("Listen TCP ", manager.tcpListenAddr)
+	manager.tcpListener, err = net.Listen("tcp", manager.tcpListenAddr)
 
-		if err != nil {
-			glog.Fatal("listen failed: ", err)
-			return
-		}
+	if err != nil {
+		glog.Fatal("listen failed: ", err)
+		return
 	}
 
 	manager.Upgradable()
