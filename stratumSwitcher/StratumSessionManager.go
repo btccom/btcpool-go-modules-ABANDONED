@@ -36,6 +36,13 @@ type StratumSessionManager struct {
 	// zookeeperSwitcherWatchDir 切换服务监控的zookeeper目录路径
 	// 具体监控的路径为 zookeeperSwitcherWatchDir/子账户名
 	zookeeperSwitcherWatchDir string
+	// enableUserAutoReg 是否打开子账户自动注册功能
+	enableUserAutoReg bool
+	// zookeeperAutoRegWatchDir 自动注册服务监控的zookeeper目录路径
+	// 具体监控的路径为 zookeeperAutoRegWatchDir/子账户名
+	zookeeperAutoRegWatchDir string
+	// 当前允许的自动注册用户数（注册一个减1，完成后加回来，到0拒绝自动注册，以防DDoS）
+	autoRegAllowUsers int64
 	// 监听的IP和TCP端口
 	tcpListenAddr string
 	// TCP监听对象
@@ -73,6 +80,9 @@ func NewStratumSessionManager(conf ConfigData) (manager *StratumSessionManager, 
 	manager.sessions = make(StratumSessionMap)
 	manager.stratumServerInfoMap = conf.StratumServerMap
 	manager.zookeeperSwitcherWatchDir = conf.ZKSwitcherWatchDir
+	manager.enableUserAutoReg = conf.EnableUserAutoReg
+	manager.zookeeperAutoRegWatchDir = conf.ZKAutoRegWatchDir
+	manager.autoRegAllowUsers = conf.AutoRegMaxWaitUsers
 	manager.tcpListenAddr = conf.ListenAddr
 	manager.chainType = chainType
 

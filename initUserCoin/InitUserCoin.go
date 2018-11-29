@@ -33,7 +33,7 @@ func InitUserCoin(coin string, url string) {
 	// 上次请求接口的时间
 	lastPUID := 0
 
-	for true {
+	for {
 		// 执行操作
 		// 定义在函数中，这样失败时可以简单的return并进入休眠
 		func() {

@@ -14,6 +14,16 @@ import (
 // Zookeeper连接超时时间
 const zookeeperConnTimeout = 5
 
+// AutoRegAPIConfig 用户自动注册API定义
+type AutoRegAPIConfig struct {
+	IntervalSeconds time.Duration
+	URL             string
+	User            string
+	Password        string
+	DefaultCoin     string
+	PostData        map[string]string
+}
+
 // ConfigData 配置数据
 type ConfigData struct {
 	// UserListAPI 币种对应的用户列表，形如{"btc":"url", "bcc":"url"}
@@ -25,6 +35,13 @@ type ConfigData struct {
 	ZKBroker []string
 	// ZKSwitcherWatchDir Switcher监控的Zookeeper路径，以斜杠结尾
 	ZKSwitcherWatchDir string
+
+	// EnableUserAutoReg 启用用户自动注册
+	EnableUserAutoReg bool
+	// ZKAutoRegWatchDir 用户自动注册的zookeeper监控地址，以斜杠结尾
+	ZKAutoRegWatchDir string
+	// UserAutoRegAPI 用户自动注册API
+	UserAutoRegAPI AutoRegAPIConfig
 }
 
 // zookeeperConn Zookeeper连接对象
@@ -61,6 +78,9 @@ func main() {
 	if configData.ZKSwitcherWatchDir[len(configData.ZKSwitcherWatchDir)-1] != '/' {
 		configData.ZKSwitcherWatchDir += "/"
 	}
+	if configData.ZKAutoRegWatchDir[len(configData.ZKAutoRegWatchDir)-1] != '/' {
+		configData.ZKAutoRegWatchDir += "/"
+	}
 
 	// 建立到Zookeeper集群的连接
 	conn, _, err := zk.Connect(configData.ZKBroker, time.Duration(zookeeperConnTimeout)*time.Second)
@@ -80,11 +100,22 @@ func main() {
 		return
 	}
 
-	// 开始执行任务
+	err = createZookeeperPath(configData.ZKAutoRegWatchDir)
+
+	if err != nil {
+		glog.Fatal("Create Zookeeper Path Failed: ", err)
+		return
+	}
+
+	// 开始执行币种初始化任务
 	for coin, url := range configData.UserListAPI {
 		waitGroup.Add(1)
 		go InitUserCoin(coin, url)
 	}
+
+	// 启动自动注册
+	waitGroup.Add(1)
+	go RunUserAutoReg(configData)
 
 	waitGroup.Wait()
 

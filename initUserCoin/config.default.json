@@ -5,5 +5,19 @@
     },
     "IntervalSeconds": 10,
     "ZKBroker": [ "127.0.0.1:2181" ],
-    "ZKSwitcherWatchDir": "/stratumSwitcher/btcbcc/"
+    "ZKSwitcherWatchDir": "/stratumSwitcher/btcbcc/",
+    "EnableUserAutoReg": true,
+    "ZKAutoRegWatchDir": "/stratumSwitcher/bitcoin_autoreg/",
+    "UserAutoRegAPI": {
+        "IntervalSeconds": 10,
+        "URL": "http://127.0.0.1:8000/autoreg.php",            
+        "User": "admin",
+        "Password": "admin",
+        "DefaultCoin": "btc",
+        "PostData": {
+            "sub_name": "{sub_name}",
+            "region_name": "cn",
+            "currency": "BTC"
+        }
+    }
 }

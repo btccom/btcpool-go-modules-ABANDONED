@@ -2,12 +2,14 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/golang/glog"
@@ -282,7 +284,7 @@ func (session *StratumSession) Resume(sessionData StratumSessionData, serverConn
 		return
 	}
 
-	err := session.findMiningCoin()
+	err := session.findMiningCoin(false)
 	if err != nil {
 		glog.Error("Resume session ", session.clientIPPort, " failed: ", err)
 		session.Stop()
@@ -381,7 +383,7 @@ func (session *StratumSession) runProxyStratum() {
 		return
 	}
 
-	err = session.findMiningCoin()
+	err = session.findMiningCoin(session.manager.enableUserAutoReg)
 
 	if err != nil {
 		session.Stop()
@@ -677,13 +679,16 @@ func (session *StratumSession) stratumFindWorkerName() error {
 	}
 }
 
-func (session *StratumSession) findMiningCoin() error {
+func (session *StratumSession) findMiningCoin(autoReg bool) error {
 	// 从zookeeper读取用户想挖的币种
-
 	session.zkWatchPath = session.manager.zookeeperSwitcherWatchDir + session.subaccountName
 	data, event, err := session.manager.zookeeperManager.GetW(session.zkWatchPath, session.sessionID)
 
 	if err != nil {
+		if autoReg {
+			return session.tryAutoReg()
+		}
+
 		if glog.V(3) {
 			glog.Info("FindMiningCoin Failed: " + session.zkWatchPath + "; " + err.Error())
 		}
@@ -702,6 +707,49 @@ func (session *StratumSession) findMiningCoin() error {
 	session.zkWatchEvent = event
 
 	return nil
+}
+
+func (session *StratumSession) tryAutoReg() error {
+	glog.Info("Try to auto register sub-account, worker: ", session.fullWorkerName)
+
+	autoRegWatchPath := session.manager.zookeeperAutoRegWatchDir + session.subaccountName
+	_, event, err := session.manager.zookeeperManager.GetW(autoRegWatchPath, session.sessionID)
+	if err != nil {
+		// 检查自动注册等待人数是否超限
+		if atomic.LoadInt64(&session.manager.autoRegAllowUsers) < 1 {
+			glog.Warning("Too much pending auto reg request. worker: ", session.fullWorkerName)
+			return ErrTooMuchPendingAutoRegReq
+		}
+		// 没有加锁，大并发时允许短暂的超过上限。减小到负值是安全的
+		atomic.AddInt64(&session.manager.autoRegAllowUsers, -1)
+		defer atomic.AddInt64(&session.manager.autoRegAllowUsers, 1)
+
+		//--------- 提交全新的自动注册请求 ---------
+
+		type autoRegInfo struct {
+			SessionID uint32
+			Worker    string
+		}
+
+		data := autoRegInfo{session.sessionID, session.fullWorkerName}
+		jsonBytes, _ := json.Marshal(data)
+		createErr := session.manager.zookeeperManager.Create(autoRegWatchPath, jsonBytes)
+		_, event, err = session.manager.zookeeperManager.GetW(autoRegWatchPath, session.sessionID)
+
+		if err != nil {
+			if createErr != nil {
+				glog.Error("Create auto register key failed, worker: ", session.fullWorkerName, ", errmsg: ", createErr)
+			} else {
+				glog.Info("Sub-account auto register failed, worker: ", session.fullWorkerName, ", errmsg: ", err)
+			}
+			return err
+		}
+	}
+
+	// waiting for register finished for remote process
+	<-event
+
+	return session.findMiningCoin(false)
 }
 
 func (session *StratumSession) connectStratumServer() error {

@@ -151,6 +151,12 @@ func (manager *ZookeeperManager) GetW(path string, sessionID uint32) (value []by
 	return
 }
 
+// Create 创建Zookeeper节点
+func (manager *ZookeeperManager) Create(path string, data []byte) (err error) {
+	_, err = manager.zookeeperConn.Create(path, data, 0, zk.WorldACL(zk.PermAll))
+	return
+}
+
 // ReleaseW 释放监控
 func (manager *ZookeeperManager) ReleaseW(path string, sessionID uint32) {
 	manager.lock.Lock()

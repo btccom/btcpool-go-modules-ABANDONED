@@ -25,6 +25,9 @@ type ConfigData struct {
 	StratumServerMap    StratumServerInfoMap
 	ZKBroker            []string
 	ZKSwitcherWatchDir  string // 以斜杠结尾
+	EnableUserAutoReg   bool
+	ZKAutoRegWatchDir   string // 以斜杠结尾
+	AutoRegMaxWaitUsers int64
 	EnableHTTPDebug     bool
 	HTTPDebugListenAddr string
 }
@@ -43,6 +46,9 @@ func (conf *ConfigData) LoadFromFile(file string) (err error) {
 	// 若zookeeper路径不以“/”结尾，则添加
 	if conf.ZKSwitcherWatchDir[len(conf.ZKSwitcherWatchDir)-1] != '/' {
 		conf.ZKSwitcherWatchDir += "/"
+	}
+	if conf.ZKAutoRegWatchDir[len(conf.ZKAutoRegWatchDir)-1] != '/' {
+		conf.ZKAutoRegWatchDir += "/"
 	}
 
 	// 若UserSuffix为空，设为与币种相同

@@ -10,6 +10,9 @@
     },
     "ZKBroker": [ "127.0.0.1:2181" ],
     "ZKSwitcherWatchDir": "/stratumSwitcher/btcbcc/",
+    "EnableUserAutoReg": true,
+    "ZKAutoRegWatchDir": "/stratumSwitcher/bitcoin_autoreg/",
+    "AutoRegMaxWaitUsers": 50,
     "EnableHTTPDebug": false,
     "HTTPDebugListenAddr": "127.0.0.1:6060"
 }

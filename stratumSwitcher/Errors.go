@@ -46,6 +46,8 @@ var (
 	ErrSessionIDInconformity = errors.New("Session ID Inconformity")
 	// ErrAuthorizeFailed 认证失败
 	ErrAuthorizeFailed = errors.New("Authorize Failed")
+	// ErrTooMuchPendingAutoRegReq 太多等待中的自动注册请求
+	ErrTooMuchPendingAutoRegReq = errors.New("Too much pending auto reg request")
 )
 
 var (
