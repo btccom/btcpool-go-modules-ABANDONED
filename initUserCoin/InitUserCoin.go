@@ -142,11 +142,24 @@ func setMiningCoin(puname string, coin string) (apiErr *APIError) {
 		return
 	}
 
+	// 写入大小写不敏感用户名索引
+	zkIndexPath := configData.ZKUserCaseInsensitiveIndex + strings.ToLower(puname)
+	exists, _, err := zookeeperConn.Exists(zkIndexPath)
+	if err != nil {
+		glog.Error("zk.Exists(", zkIndexPath, ",", puname, ") Failed: ", err)
+	}
+	if !exists {
+		_, err = zookeeperConn.Create(zkIndexPath, []byte(puname), 0, zk.WorldACL(zk.PermAll))
+		if err != nil {
+			glog.Error("zk.Create(", zkIndexPath, ",", puname, ") Failed: ", err)
+		}
+	}
+
 	// stratumSwitcher 监控的键
 	zkPath := configData.ZKSwitcherWatchDir + puname
 
 	// 看看键是否存在
-	exists, _, err := zookeeperConn.Exists(zkPath)
+	exists, _, err = zookeeperConn.Exists(zkPath)
 
 	if err != nil {
 		glog.Error("zk.Exists(", zkPath, ") Failed: ", err)

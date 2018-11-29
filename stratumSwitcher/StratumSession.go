@@ -498,12 +498,12 @@ func (session *StratumSession) parseAuthorizeRequest(request *JSONRPCRequest) (r
 	}
 
 	// 矿工名
-	session.fullWorkerName = strings.TrimSpace(fullWorkerName)
+	session.fullWorkerName = FilterWorkerName(fullWorkerName)
 
 	// 以太坊矿工名中可能包含钱包地址，且矿工名本身可能位于附加的worker字段
 	if session.protocolType != ProtocolBitcoinStratum {
 		if request.Worker != "" {
-			session.fullWorkerName += "." + strings.TrimSpace(request.Worker)
+			session.fullWorkerName += "." + FilterWorkerName(request.Worker)
 		}
 		session.fullWorkerName = StripEthAddrFromFullName(session.fullWorkerName)
 	}
@@ -511,11 +511,13 @@ func (session *StratumSession) parseAuthorizeRequest(request *JSONRPCRequest) (r
 	if strings.Contains(session.fullWorkerName, ".") {
 		// 截取“.”之前的做为子账户名，“.”及之后的做矿机名
 		pos := strings.Index(session.fullWorkerName, ".")
-		session.subaccountName = session.fullWorkerName[:pos]
+		session.subaccountName = session.manager.GetRegularSubaccountName(session.fullWorkerName[:pos])
 		session.minerNameWithDot = session.fullWorkerName[pos:]
+		session.fullWorkerName = session.subaccountName + session.minerNameWithDot
 	} else {
-		session.subaccountName = session.fullWorkerName
+		session.subaccountName = session.manager.GetRegularSubaccountName(session.fullWorkerName)
 		session.minerNameWithDot = ""
+		session.fullWorkerName = session.subaccountName
 	}
 
 	if len(session.subaccountName) < 1 {

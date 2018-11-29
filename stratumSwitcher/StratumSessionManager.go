@@ -43,6 +43,8 @@ type StratumSessionManager struct {
 	zookeeperAutoRegWatchDir string
 	// 当前允许的自动注册用户数（注册一个减1，完成后加回来，到0拒绝自动注册，以防DDoS）
 	autoRegAllowUsers int64
+	// 大小写不敏感的用户名索引
+	zkUserCaseInsensitiveIndex string
 	// 监听的IP和TCP端口
 	tcpListenAddr string
 	// TCP监听对象
@@ -83,6 +85,7 @@ func NewStratumSessionManager(conf ConfigData) (manager *StratumSessionManager, 
 	manager.enableUserAutoReg = conf.EnableUserAutoReg
 	manager.zookeeperAutoRegWatchDir = conf.ZKAutoRegWatchDir
 	manager.autoRegAllowUsers = conf.AutoRegMaxWaitUsers
+	manager.zkUserCaseInsensitiveIndex = conf.ZKUserCaseInsensitiveIndex
 	manager.tcpListenAddr = conf.ListenAddr
 	manager.chainType = chainType
 
@@ -245,4 +248,21 @@ func (manager *StratumSessionManager) Upgradable() {
 	})
 
 	glog.Info("Stratum Switcher is Now Upgradable.")
+}
+
+// GetRegularSubaccountName 获取规范化的(大小写敏感的)子账户名
+func (manager *StratumSessionManager) GetRegularSubaccountName(subAccountName string) string {
+	path := manager.zkUserCaseInsensitiveIndex + strings.ToLower(subAccountName)
+	regularNameBytes, _, err := manager.zookeeperManager.zookeeperConn.Get(path)
+	if err != nil {
+		if glog.V(3) {
+			glog.Info("GetRegularSubaccountName failed. user: ", subAccountName, ", errmsg: ", err)
+		}
+		return subAccountName
+	}
+	regularName := string(regularNameBytes)
+	if glog.V(3) {
+		glog.Info("GetRegularSubaccountName: ", subAccountName, " -> ", regularName)
+	}
+	return regularName
 }

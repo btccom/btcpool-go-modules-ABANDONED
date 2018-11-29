@@ -42,6 +42,8 @@ type ConfigData struct {
 	ZKAutoRegWatchDir string
 	// UserAutoRegAPI 用户自动注册API
 	UserAutoRegAPI AutoRegAPIConfig
+	// ZKUserCaseInsensitiveIndex 大小写不敏感的子账户索引
+	ZKUserCaseInsensitiveIndex string
 }
 
 // zookeeperConn Zookeeper连接对象
@@ -81,6 +83,9 @@ func main() {
 	if configData.ZKAutoRegWatchDir[len(configData.ZKAutoRegWatchDir)-1] != '/' {
 		configData.ZKAutoRegWatchDir += "/"
 	}
+	if configData.ZKUserCaseInsensitiveIndex[len(configData.ZKUserCaseInsensitiveIndex)-1] != '/' {
+		configData.ZKUserCaseInsensitiveIndex += "/"
+	}
 
 	// 建立到Zookeeper集群的连接
 	conn, _, err := zk.Connect(configData.ZKBroker, time.Duration(zookeeperConnTimeout)*time.Second)
@@ -101,6 +106,13 @@ func main() {
 	}
 
 	err = createZookeeperPath(configData.ZKAutoRegWatchDir)
+
+	if err != nil {
+		glog.Fatal("Create Zookeeper Path Failed: ", err)
+		return
+	}
+
+	err = createZookeeperPath(configData.ZKUserCaseInsensitiveIndex)
 
 	if err != nil {
 		glog.Fatal("Create Zookeeper Path Failed: ", err)

@@ -19,5 +19,6 @@
             "region_name": "cn",
             "currency": "BTC"
         }
-    }
+    },
+    "ZKUserCaseInsensitiveIndex": "/stratumSwitcher/bitcoin_case/"
 }
