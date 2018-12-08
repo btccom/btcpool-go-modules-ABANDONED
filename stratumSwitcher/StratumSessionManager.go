@@ -71,11 +71,15 @@ func NewStratumSessionManager(conf ConfigData, runtimeData RuntimeData) (manager
 	case "bitcoin":
 		chainType = ChainTypeBitcoin
 		indexBits = 24
-		break
+	case "decred-normal":
+		chainType = ChainTypeDecredNormal
+		indexBits = 24
+	case "decred-gominer":
+		chainType = ChainTypeDecredGoMiner
+		indexBits = 24
 	case "ethereum":
 		chainType = ChainTypeEthereum
 		indexBits = 16
-		break
 	default:
 		err = errors.New("Unknown ChainType: " + conf.ChainType)
 		return

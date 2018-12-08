@@ -159,11 +159,19 @@ func NewStratumSession(manager *StratumSessionManager, clientConn net.Conn, sess
 	session.clientReader = bufio.NewReaderSize(clientConn, bufioReaderBufSize)
 
 	session.clientIPPort = clientConn.RemoteAddr().String()
-	session.sessionIDString = Uint32ToHex(session.sessionID)
 
-	if manager.chainType == ChainTypeEthereum {
+	switch manager.chainType {
+	case ChainTypeBitcoin:
+		session.sessionIDString = Uint32ToHex(session.sessionID)
+	case ChainTypeDecredNormal:
+		// reversed 12 bytes
+		session.sessionIDString = "0000000000000000" + Uint32ToHexLE(session.sessionID)
+	case ChainTypeDecredGoMiner:
+		// reversed 4 bytes
+		session.sessionIDString = Uint32ToHexLE(session.sessionID)
+	case ChainTypeEthereum:
 		// Ethereum uses 24 bit session id
-		session.sessionIDString = session.sessionIDString[2:8]
+		session.sessionIDString = Uint32ToHex(session.sessionID)[2:8]
 	}
 
 	if glog.V(3) {
@@ -359,18 +367,22 @@ func (session *StratumSession) protocolDetect() ProtocolType {
 }
 
 func (session *StratumSession) getDefaultStratumProtocol() ProtocolType {
-	if session.manager.chainType == ChainTypeBitcoin {
+	switch session.manager.chainType {
+	case ChainTypeBitcoin:
+		fallthrough
+	case ChainTypeDecredNormal:
+		fallthrough
+	case ChainTypeDecredGoMiner:
+		// DCR使用与比特币几乎完全相同的协议
 		return ProtocolBitcoinStratum
-	}
-
-	if session.manager.chainType == ChainTypeEthereum {
+	case ChainTypeEthereum:
 		// This is the default protocol. The protocol may change after further detection.
 		// The difference between ProtocolEthereumProxy and the other two Ethereum protocols is that
 		// ProtocolEthereumProxy is no "mining.subscribe" phase, so it is set as default to simplify the detection.
 		return ProtocolEthereumProxy
+	default:
+		return ProtocolUnknown
 	}
-
-	return ProtocolUnknown
 }
 
 func (session *StratumSession) runProxyStratum() {
@@ -408,6 +420,10 @@ func (session *StratumSession) parseSubscribeRequest(request *JSONRPCRequest) (r
 	// 生成响应
 	switch session.manager.chainType {
 	case ChainTypeBitcoin:
+		fallthrough
+	case ChainTypeDecredNormal:
+		fallthrough
+	case ChainTypeDecredGoMiner:
 		if len(request.Params) >= 1 {
 			userAgent, ok := session.stratumSubscribeRequest.Params[0].(string)
 			// 判断是否为BTCAgent

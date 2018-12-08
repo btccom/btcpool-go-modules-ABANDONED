@@ -39,6 +39,13 @@ func Uint32ToHex(num uint32) string {
 	return hex.EncodeToString(bytesBuffer.Bytes())
 }
 
+// Uint32ToHexLE unit32 转 hex (小端字节序)
+func Uint32ToHexLE(num uint32) string {
+	bytesBuffer := bytes.NewBuffer([]byte{})
+	binary.Write(bytesBuffer, binary.LittleEndian, num)
+	return hex.EncodeToString(bytesBuffer.Bytes())
+}
+
 // SubString 字符串截取
 // <http://outofmemory.cn/code-snippet/1365/Go-language-jiequ-string-function>
 func SubString(str string, start, length int) string {

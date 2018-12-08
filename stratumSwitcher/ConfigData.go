@@ -13,6 +13,10 @@ type ChainType uint8
 const (
 	// ChainTypeBitcoin 比特币或类似区块链
 	ChainTypeBitcoin ChainType = iota
+	// ChainTypeDecredNormal DCR Normal
+	ChainTypeDecredNormal
+	// ChainTypeDecredGoMiner DCR GoMiner
+	ChainTypeDecredGoMiner
 	// ChainTypeEthereum 以太坊或类似区块链
 	ChainTypeEthereum
 )
@@ -22,6 +26,10 @@ func (chainType ChainType) ToString() string {
 	switch chainType {
 	case ChainTypeBitcoin:
 		return "bitcoin"
+	case ChainTypeDecredNormal:
+		return "decred-normal"
+	case ChainTypeDecredGoMiner:
+		return "decred-gominer"
 	case ChainTypeEthereum:
 		return "ethereum"
 	default:
