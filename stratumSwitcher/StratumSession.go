@@ -858,7 +858,9 @@ func (session *StratumSession) sendMiningSubscribeToServer() (userAgent string, 
 		// 为了保证Web侧“最近提交IP”显示正确，将矿机的IP做为第三个参数传递给Stratum Server
 		clientIP := session.clientIPPort[:strings.LastIndex(session.clientIPPort, ":")]
 		clientIPLong := IP2Long(clientIP)
-		session.stratumSubscribeRequest.SetParam(userAgent, session.sessionIDString, clientIPLong)
+		// 不直接使用 session.sessionIDString，因为在DCR币种里，它已经进行了填充和字节序颠倒。
+		sessionIDString := Uint32ToHex(session.sessionID)
+		session.stratumSubscribeRequest.SetParam(userAgent, sessionIDString, clientIPLong)
 
 	case ProtocolEthereumStratum:
 		fallthrough
