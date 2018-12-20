@@ -90,23 +90,34 @@ func RPCCallCreateAuxBlock(rpcInfo ChainRPCInfo) (auxBlockInfo AuxBlockInfo, err
 	// ------------ Bits ------------
 
 	bitsKey := rpcInfo.CreateAuxBlock.ResponseKeys.Bits
-	bits, ok := rpcRawResult[bitsKey]
-	if !ok {
-		err = errors.New("rpc result: missing " + bitsKey)
-		return
-	}
+	if len(bitsKey) >= 1 {
+		bits, ok := rpcRawResult[bitsKey]
+		if !ok {
+			err = errors.New("rpc result: missing " + bitsKey)
+			return
+		}
 
-	auxBlockInfo.Bits, ok = bits.(string)
-	if !ok {
-		err = errors.New("rpc result: " + bitsKey + " is not a string")
-		return
+		auxBlockInfo.Bits, ok = bits.(string)
+		if !ok {
+			err = errors.New("rpc result: " + bitsKey + " is not a string")
+			return
+		}
 	}
 
 	// ------------ Target ------------
-
-	targetStr, err := BitsToTarget(auxBlockInfo.Bits)
-	if err != nil {
-		err = errors.New("rpc result: cannot convert bits (" + auxBlockInfo.Bits + ") to target: " + err.Error())
+	var targetStr string
+	targetKey := rpcInfo.CreateAuxBlock.ResponseKeys.Target
+	if len(targetKey) < 1 {
+		targetStr, err := BitsToTarget(auxBlockInfo.Bits)
+		if err != nil {
+			err = errors.New("rpc result: cannot convert bits (" + auxBlockInfo.Bits + ") to target: " + err.Error())
+		}
+	} else {
+		targetStr, ok := rpcRawResult[targetKey]
+		if !ok {
+			err = errors.New("rpc result: missing " + targetKey)
+			return
+		}
 	}
 
 	targetByte, err := hex.DecodeString(targetStr)

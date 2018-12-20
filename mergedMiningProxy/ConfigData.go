@@ -108,8 +108,8 @@ func (conf *ConfigData) Check() (err error) {
 			return errors.New("Chains[" + strconv.Itoa(index) + "].CreateAuxBlock.ResponseKeys.Hash cannot be empty")
 		}
 
-		if len(chain.CreateAuxBlock.ResponseKeys.Bits) < 1 {
-			return errors.New("Chains[" + strconv.Itoa(index) + "].CreateAuxBlock.ResponseKeys.Bits cannot be empty")
+		if len(chain.CreateAuxBlock.ResponseKeys.Bits) < 1 && len(chain.CreateAuxBlock.ResponseKeys.Target) < 1 {
+			return errors.New("Chains[" + strconv.Itoa(index) + "].CreateAuxBlock.ResponseKeys.Bits and chain.CreateAuxBlock.ResponseKeys.Target cannot be empty together")
 		}
 
 		if chain.ChainID == 0 && len(chain.CreateAuxBlock.ResponseKeys.ChainID) < 1 {

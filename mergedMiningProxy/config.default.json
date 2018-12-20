@@ -65,6 +65,30 @@
                     "auxpow": "{aux-pow-hex}"
                 }
             }
+        },
+        {
+            "Name": "Unobtanium",
+            "RPCServer":{
+                "URL": "http://127.0.0.1:65535/",
+                "User": "test",
+                "Passwd": "123"
+            },
+            "CreateAuxBlock": {
+                "Method": "getauxblock",
+                "Params": [],
+                "ResponseKeys": {
+                    "Hash": "hash",
+                    "ChainID": "chainid",
+                    "Target": "target"
+                }
+            },
+            "SubmitAuxBlock": {
+                "Method": "getauxblock",
+                "Params": [
+                    "{hash-hex}",
+                    "{aux-pow-hex}"
+                ]
+            }
         }
     ]
 }
