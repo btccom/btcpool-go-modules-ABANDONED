@@ -20,6 +20,7 @@ type RPCCreateAuxBlockResultKeys struct {
 	Height        string
 	PrevBlockHash string
 	CoinbaseValue string
+	Target        string
 }
 
 // RPCCreateAuxBlockInfo RPC方法 createauxblock 的请求和响应信息

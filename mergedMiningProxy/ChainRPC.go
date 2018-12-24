@@ -133,6 +133,22 @@ func RPCCallCreateAuxBlock(rpcInfo ChainRPCInfo) (auxBlockInfo AuxBlockInfo, err
 
 	auxBlockInfo.Target.Assign(targetByte)
 
+    //----------Bits not exist-------
+    //bitsKey := rpcInfo.CreateAuxBlock.ResponseKeys.Bits
+	if len(bitsKey) < 1 {
+		bits, ok := TargetToBits(targetStr)
+		if !ok {
+			err = errors.New("rpc result: cannot convert Target ( " + auxBlockInfo.Target + ") to bits: " + err.Error())
+			return
+		}
+
+		auxBlockInfo.Bits, ok = bits.(string)
+		if !ok {
+			err = errors.New("rpc result: " + bitsKey + " is not a string")
+			return
+		}
+	}
+
 	// ------------ Height ------------
 
 	heightKey := rpcInfo.CreateAuxBlock.ResponseKeys.Height
