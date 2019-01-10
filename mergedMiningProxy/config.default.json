@@ -2,7 +2,8 @@
     "RPCServer": {
         "ListenAddr": "0.0.0.0:8999",
         "User": "admin",
-        "Passwd": "admin"
+        "Passwd": "admin",
+        "MainChain":"BTC"
     },
     "AuxJobMaker": {
         "CreateAuxBlockIntervalSeconds": 5,

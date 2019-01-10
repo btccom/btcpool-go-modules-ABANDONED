@@ -42,7 +42,8 @@ vim /work/golang/mergedMiningProxy/config.json
     "RPCServer": {
         "ListenAddr": "0.0.0.0:8999", // 监听IP和端口
         "User": "admin",  // Basic认证用户名
-        "Passwd": "admin" // Basic认证密码
+        "Passwd": "admin", // Basic认证密码
+        "MainChain":"BTC"  // 指定联合挖矿的主链类型，如：bitcoin => "BTC", litecoin => "LTC"
     },
     "AuxJobMaker": {
         "CreateAuxBlockIntervalSeconds": 5, // 更新联合挖矿任务的频率（秒）
