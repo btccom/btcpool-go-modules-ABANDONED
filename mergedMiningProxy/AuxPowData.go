@@ -37,7 +37,7 @@ type AuxPowData struct {
                                         when used in a merged mining setup with multiple auxiliary chains.
 80 parent_block         Block header    Parent block header.
 */
-func ParseAuxPowData(dataHex string) (auxPowData *AuxPowData, err error) {
+func ParseAuxPowData(dataHex string, chainType string) (auxPowData *AuxPowData, err error) {
 	auxPowData = new(AuxPowData)
 
 	data, err := hex.DecodeString(dataHex)
@@ -56,7 +56,18 @@ func ParseAuxPowData(dataHex string) (auxPowData *AuxPowData, err error) {
 
 	// 因为解析 coinbase_txn 十分困难，且无法简单得到其准确长度，
 	// 所以决定先计算出 block_hash，然后从字节流中找到该 hash 以确定 coinbase_txn 的长度。
-	auxPowData.blockHash = hash.Hash(auxPowData.parentBlock)
+	if chainType == "LTC" {
+		scryptKey, errScrypt := Scrypt(auxPowData.parentBlock)
+		if errScrypt != nil {
+			err = errors.New("Scrypt parentBlock failed")
+			return
+		}
+		auxPowData.blockHash.Assign(scryptKey)
+
+	} else {
+		auxPowData.blockHash = hash.Hash(auxPowData.parentBlock)
+	}
+	
 	// BTCPool的默认字节序是 big-endian
 	auxPowData.blockHash = auxPowData.blockHash.Reverse()
 

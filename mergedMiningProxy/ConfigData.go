@@ -57,6 +57,7 @@ type ProxyRPCServer struct {
 	ListenAddr string
 	User       string
 	Passwd     string
+	MainChain  string
 }
 
 // AuxJobMakerInfo 辅助挖矿任务生成配置
