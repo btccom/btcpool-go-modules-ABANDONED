@@ -187,7 +187,7 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 		return
 	}
 
-	auxPowData, err := ParseAuxPowData(auxPowHex)
+	auxPowData, err := ParseAuxPowData(auxPowHex, handle.config.MainChain)
 	if err != nil {
 		response.Error = RPCError{400, err.Error()}
 		return
