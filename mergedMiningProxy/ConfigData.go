@@ -43,10 +43,20 @@ type ChainRPCServer struct {
 	Passwd string
 }
 
+type DBConnectionInfo struct {
+	Host       string
+	Port       string
+	Username   string
+	Password   string
+	Dbname     string
+}
+
+
 // ChainRPCInfo 合并挖矿币种的RPC信息
 type ChainRPCInfo struct {
 	ChainID        uint32
 	Name           string
+	AuxTableName   string
 	RPCServer      ChainRPCServer
 	CreateAuxBlock RPCCreateAuxBlockInfo
 	SubmitAuxBlock RPCSubmitAuxBlockInfo
@@ -58,6 +68,7 @@ type ProxyRPCServer struct {
 	User       string
 	Passwd     string
 	MainChain  string
+	PoolDb     DBConnectionInfo
 }
 
 // AuxJobMakerInfo 辅助挖矿任务生成配置
@@ -88,6 +99,26 @@ func (conf *ConfigData) Check() (err error) {
 		return errors.New("RPCServer.ListenAddr cannot be empty")
 	}
 
+	if len(conf.RPCServer.PoolDb.Host) < 1 {
+		return errors.New("RPCServer.PoolDb.Host cannot be empty")
+	}
+
+	if len(conf.RPCServer.PoolDb.Port) < 1 {
+		return errors.New("RPCServer.PoolDb.Port cannot be empty")
+	}
+
+	if len(conf.RPCServer.PoolDb.Username) < 1 {
+		return errors.New("RPCServer.PoolDb.Username cannot be empty")
+	}
+
+	if len(conf.RPCServer.PoolDb.Password) < 1 {
+		return errors.New("RPCServer.PoolDb.Password cannot be empty")
+	}
+
+	if len(conf.RPCServer.PoolDb.Dbname) < 1 {
+		return errors.New("RPCServer.PoolDb.Dbname cannot be empty")
+	}
+
 	if len(conf.Chains) < 1 {
 		return errors.New("Chains cannot be empty")
 	}
@@ -97,6 +128,11 @@ func (conf *ConfigData) Check() (err error) {
 		if len(chain.Name) < 1 {
 			return errors.New("Chains[" + strconv.Itoa(index) + "].Name cannot be empty")
 		}
+		
+		if len(chain.AuxTableName) < 1 {
+			return errors.New("Chains[" + strconv.Itoa(index) + "].AuxTableName cannot be empty")
+		}
+
 
 		if len(chain.RPCServer.URL) < 1 {
 			return errors.New("Chains[" + strconv.Itoa(index) + "].RPCServer.URL cannot be empty")

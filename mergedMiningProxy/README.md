@@ -43,7 +43,14 @@ vim /work/golang/mergedMiningProxy/config.json
         "ListenAddr": "0.0.0.0:8999", // 监听IP和端口
         "User": "admin",  // Basic认证用户名
         "Passwd": "admin", // Basic认证密码
-        "MainChain":"BTC"  // 指定联合挖矿的主链类型，如：bitcoin => "BTC", litecoin => "LTC"
+        "MainChain":"BTC",  // 指定联合挖矿的主链类型，如：bitcoin => "BTC", litecoin => "LTC"
+        "PoolDb": {
+            "host" : "127.0.0.1",
+            "port" : 3306,
+            "username" : "root",
+            "password" : "root",
+            "dbname" : "bpool_local_db"
+        }
     },
     "AuxJobMaker": {
         "CreateAuxBlockIntervalSeconds": 5, // 更新联合挖矿任务的频率（秒）
@@ -54,6 +61,7 @@ vim /work/golang/mergedMiningProxy/config.json
         // 可添加任意数量的链
         {
             "Name": "Namecoin", // 链名，仅用于日志记录，内容可自定义
+            "AuxTableName" :"found_nmc_blocks",// 存储auxpow相关信息的表名
             "RPCServer": {
                 "URL": "http://127.0.0.1:8444/", // 联合挖矿RPC服务器
                 "User": "test", // Basic认证用户名
@@ -148,6 +156,7 @@ vim /work/golang/mergedMiningProxy/config.json
         },
         {
             "Name": "Elastos Regtest",
+            "AuxTableName" :"found_Elastos_blocks",
             "RPCServer":{
                 "URL": "http://127.0.0.1:4336/",
                 "User": "test",
