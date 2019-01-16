@@ -3,7 +3,14 @@
         "ListenAddr": "0.0.0.0:8999",
         "User": "admin",
         "Passwd": "admin",
-        "MainChain":"BTC"
+        "MainChain":"BTC",
+        "PoolDb": {
+            "host" : "127.0.0.1",
+            "port" : 3306,
+            "username" : "root",
+            "password" : "root",
+            "dbname" : "bpool_local_db"
+        }
     },
     "AuxJobMaker": {
         "CreateAuxBlockIntervalSeconds": 5,
@@ -13,6 +20,7 @@
     "Chains": [
         {
             "Name": "Namecoin",
+            "AuxTableName" :"found_nmc_blocks",
             "RPCServer":{
                 "URL": "http://127.0.0.1:8444/",
                 "User": "test",
@@ -40,6 +48,7 @@
         },
         {
             "Name": "Elastos Regtest",
+            "AuxTableName" :"found_Elastos_blocks",
             "RPCServer":{
                 "URL": "http://127.0.0.1:4336/",
                 "User": "test",

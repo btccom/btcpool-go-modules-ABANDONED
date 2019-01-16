@@ -66,10 +66,10 @@ func ParseAuxPowData(dataHex string, chainType string) (auxPowData *AuxPowData, 
 
 	} else {
 		auxPowData.blockHash = hash.Hash(auxPowData.parentBlock)
+		// BTCPool的默认字节序是 big-endian
+		auxPowData.blockHash = auxPowData.blockHash.Reverse()
 	}
-	
-	// BTCPool的默认字节序是 big-endian
-	auxPowData.blockHash = auxPowData.blockHash.Reverse()
+
 
 	// 从字节流中找到 block_hash 以确定 coinbase_txn 的长度
 	index := bytes.Index(data, auxPowData.blockHash[:])
@@ -86,6 +86,7 @@ func ParseAuxPowData(dataHex string, chainType string) (auxPowData *AuxPowData, 
 			err = errors.New("cannot found blockHash " + auxPowData.blockHash.Hex() + " from AuxPowData " + dataHex)
 			return
 		}
+
 	}
 
 	// index 在数值上等于 coinbase_txn 的长度
