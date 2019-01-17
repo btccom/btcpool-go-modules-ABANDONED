@@ -76,7 +76,9 @@ func (conf *ConfigData) LoadFromFile(file string) (err error) {
 	if conf.ZKAutoRegWatchDir[len(conf.ZKAutoRegWatchDir)-1] != '/' {
 		conf.ZKAutoRegWatchDir += "/"
 	}
-	if !conf.StratumServerCaseInsensitive && conf.ZKUserCaseInsensitiveIndex[len(conf.ZKUserCaseInsensitiveIndex)-1] != '/' {
+	if !conf.StratumServerCaseInsensitive &&
+		len(conf.ZKUserCaseInsensitiveIndex) > 0 &&
+		conf.ZKUserCaseInsensitiveIndex[len(conf.ZKUserCaseInsensitiveIndex)-1] != '/' {
 		conf.ZKUserCaseInsensitiveIndex += "/"
 	}
 

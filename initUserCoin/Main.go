@@ -44,7 +44,8 @@ type ConfigData struct {
 	UserAutoRegAPI AutoRegAPIConfig
 	// StratumServerCaseInsensitive 挖矿服务器对子账户名大小写不敏感，此时将总是写入小写的子账户名
 	StratumServerCaseInsensitive bool
-	// ZKUserCaseInsensitiveIndex 大小写不敏感的子账户索引（仅在 StratumServerCaseInsensitive == false 时用到）
+	// ZKUserCaseInsensitiveIndex 大小写不敏感的子账户索引
+	//（可空，仅在 StratumServerCaseInsensitive == false 时用到）
 	ZKUserCaseInsensitiveIndex string
 }
 
@@ -85,7 +86,9 @@ func main() {
 	if config.EnableUserAutoReg && configData.ZKAutoRegWatchDir[len(configData.ZKAutoRegWatchDir)-1] != '/' {
 		configData.ZKAutoRegWatchDir += "/"
 	}
-	if !configData.StratumServerCaseInsensitive && configData.ZKUserCaseInsensitiveIndex[len(configData.ZKUserCaseInsensitiveIndex)-1] != '/' {
+	if !configData.StratumServerCaseInsensitive &&
+		len(configData.ZKUserCaseInsensitiveIndex) > 0 &&
+		configData.ZKUserCaseInsensitiveIndex[len(configData.ZKUserCaseInsensitiveIndex)-1] != '/' {
 		configData.ZKUserCaseInsensitiveIndex += "/"
 	}
 
@@ -116,7 +119,7 @@ func main() {
 		}
 	}
 
-	if !configData.StratumServerCaseInsensitive {
+	if !configData.StratumServerCaseInsensitive && len(configData.ZKUserCaseInsensitiveIndex) > 0 {
 		err = createZookeeperPath(configData.ZKUserCaseInsensitiveIndex)
 
 		if err != nil {

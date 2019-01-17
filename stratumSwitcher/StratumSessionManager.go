@@ -50,7 +50,7 @@ type StratumSessionManager struct {
 	autoRegAllowUsers int64
 	// stratum server对子账户名大小写不敏感
 	stratumServerCaseInsensitive bool
-	// 大小写不敏感的用户名索引（仅在 stratumServerCaseInsensitive == false 时用到）
+	// 大小写不敏感的用户名索引（可空，仅在 stratumServerCaseInsensitive == false 时用到）
 	zkUserCaseInsensitiveIndex string
 	// 监听的IP和TCP端口
 	tcpListenAddr string
@@ -334,6 +334,11 @@ func (manager *StratumSessionManager) GetRegularSubaccountName(subAccountName st
 	if manager.stratumServerCaseInsensitive {
 		// sserver对子账户名的大小写不敏感，直接返回小写后的子账户名
 		return strings.ToLower(subAccountName)
+	}
+
+	if len(manager.zkUserCaseInsensitiveIndex) <= 0 {
+		// zkUserCaseInsensitiveIndex 被禁用（为空），直接返回子账户名本身
+		return subAccountName
 	}
 
 	path := manager.zkUserCaseInsensitiveIndex + strings.ToLower(subAccountName)
