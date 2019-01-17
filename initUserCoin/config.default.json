@@ -20,5 +20,6 @@
             "currency": "BTC"
         }
     },
+    "StratumServerCaseInsensitive": false,
     "ZKUserCaseInsensitiveIndex": "/stratumSwitcher/bitcoin_case/"
 }

@@ -42,7 +42,9 @@ type ConfigData struct {
 	ZKAutoRegWatchDir string
 	// UserAutoRegAPI 用户自动注册API
 	UserAutoRegAPI AutoRegAPIConfig
-	// ZKUserCaseInsensitiveIndex 大小写不敏感的子账户索引
+	// StratumServerCaseInsensitive 挖矿服务器对子账户名大小写不敏感，此时将总是写入小写的子账户名
+	StratumServerCaseInsensitive bool
+	// ZKUserCaseInsensitiveIndex 大小写不敏感的子账户索引（仅在 StratumServerCaseInsensitive == false 时用到）
 	ZKUserCaseInsensitiveIndex string
 }
 
@@ -80,10 +82,10 @@ func main() {
 	if configData.ZKSwitcherWatchDir[len(configData.ZKSwitcherWatchDir)-1] != '/' {
 		configData.ZKSwitcherWatchDir += "/"
 	}
-	if configData.ZKAutoRegWatchDir[len(configData.ZKAutoRegWatchDir)-1] != '/' {
+	if config.EnableUserAutoReg && configData.ZKAutoRegWatchDir[len(configData.ZKAutoRegWatchDir)-1] != '/' {
 		configData.ZKAutoRegWatchDir += "/"
 	}
-	if configData.ZKUserCaseInsensitiveIndex[len(configData.ZKUserCaseInsensitiveIndex)-1] != '/' {
+	if !configData.StratumServerCaseInsensitive && configData.ZKUserCaseInsensitiveIndex[len(configData.ZKUserCaseInsensitiveIndex)-1] != '/' {
 		configData.ZKUserCaseInsensitiveIndex += "/"
 	}
 
@@ -105,18 +107,22 @@ func main() {
 		return
 	}
 
-	err = createZookeeperPath(configData.ZKAutoRegWatchDir)
+	if configData.EnableUserAutoReg {
+		err = createZookeeperPath(configData.ZKAutoRegWatchDir)
 
-	if err != nil {
-		glog.Fatal("Create Zookeeper Path Failed: ", err)
-		return
+		if err != nil {
+			glog.Fatal("Create Zookeeper Path Failed: ", err)
+			return
+		}
 	}
 
-	err = createZookeeperPath(configData.ZKUserCaseInsensitiveIndex)
+	if !configData.StratumServerCaseInsensitive {
+		err = createZookeeperPath(configData.ZKUserCaseInsensitiveIndex)
 
-	if err != nil {
-		glog.Fatal("Create Zookeeper Path Failed: ", err)
-		return
+		if err != nil {
+			glog.Fatal("Create Zookeeper Path Failed: ", err)
+			return
+		}
 	}
 
 	// 开始执行币种初始化任务
@@ -126,8 +132,10 @@ func main() {
 	}
 
 	// 启动自动注册
-	waitGroup.Add(1)
-	go RunUserAutoReg(configData)
+	if configData.EnableUserAutoReg {
+		waitGroup.Add(1)
+		go RunUserAutoReg(configData)
+	}
 
 	waitGroup.Wait()
 

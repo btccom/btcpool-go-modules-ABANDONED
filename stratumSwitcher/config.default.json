@@ -14,6 +14,7 @@
     "EnableUserAutoReg": true,
     "ZKAutoRegWatchDir": "/stratumSwitcher/bitcoin_autoreg/",
     "AutoRegMaxWaitUsers": 50,
+    "StratumServerCaseInsensitive": false,
     "ZKUserCaseInsensitiveIndex": "/stratumSwitcher/bitcoin_case/",
     "EnableHTTPDebug": false,
     "HTTPDebugListenAddr": "127.0.0.1:6060"

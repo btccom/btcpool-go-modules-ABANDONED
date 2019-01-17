@@ -184,6 +184,12 @@ func changeMiningCoin(puname string, coin string) (oldCoin string, apiErr *APIEr
 		return
 	}
 
+	if configData.StratumServerCaseInsensitive {
+		// stratum server对子账户名大小写不敏感
+		// 简单的将子账户名转换为小写即可
+		puname = strings.ToLower(puname)
+	}
+
 	// stratumSwitcher 监控的键
 	zkPath := configData.ZKSwitcherWatchDir + puname
 
