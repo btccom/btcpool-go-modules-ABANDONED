@@ -146,8 +146,9 @@ func setMiningCoin(puname string, coin string) (apiErr *APIError) {
 		// stratum server对子账户名大小写不敏感
 		// 简单的将子账户名转换为小写即可
 		puname = strings.ToLower(puname)
-	} else {
+	} else if len(configData.ZKUserCaseInsensitiveIndex) > 0 {
 		// stratum server对子账户名大小写敏感
+		// 且 ZKUserCaseInsensitiveIndex 未被禁用（不为空）
 		// 写入大小写不敏感的用户名索引
 		zkIndexPath := configData.ZKUserCaseInsensitiveIndex + strings.ToLower(puname)
 		exists, _, err := zookeeperConn.Exists(zkIndexPath)
