@@ -39,19 +39,20 @@ func (chainType ChainType) ToString() string {
 
 // ConfigData 配置数据
 type ConfigData struct {
-	ServerID                   uint8
-	ChainType                  string
-	ListenAddr                 string
-	StratumServerMap           StratumServerInfoMap
-	ZKBroker                   []string
-	ZKServerIDAssignDir        string // 以斜杠结尾
-	ZKSwitcherWatchDir         string // 以斜杠结尾
-	EnableUserAutoReg          bool
-	ZKAutoRegWatchDir          string // 以斜杠结尾
-	AutoRegMaxWaitUsers        int64
-	ZKUserCaseInsensitiveIndex string // 以斜杠结尾
-	EnableHTTPDebug            bool
-	HTTPDebugListenAddr        string
+	ServerID                     uint8
+	ChainType                    string
+	ListenAddr                   string
+	StratumServerMap             StratumServerInfoMap
+	ZKBroker                     []string
+	ZKServerIDAssignDir          string // 以斜杠结尾
+	ZKSwitcherWatchDir           string // 以斜杠结尾
+	EnableUserAutoReg            bool
+	ZKAutoRegWatchDir            string // 以斜杠结尾
+	AutoRegMaxWaitUsers          int64
+	StratumServerCaseInsensitive bool
+	ZKUserCaseInsensitiveIndex   string // 以斜杠结尾
+	EnableHTTPDebug              bool
+	HTTPDebugListenAddr          string
 }
 
 // LoadFromFile 从文件载入配置
@@ -75,7 +76,7 @@ func (conf *ConfigData) LoadFromFile(file string) (err error) {
 	if conf.ZKAutoRegWatchDir[len(conf.ZKAutoRegWatchDir)-1] != '/' {
 		conf.ZKAutoRegWatchDir += "/"
 	}
-	if conf.ZKUserCaseInsensitiveIndex[len(conf.ZKUserCaseInsensitiveIndex)-1] != '/' {
+	if !conf.StratumServerCaseInsensitive && conf.ZKUserCaseInsensitiveIndex[len(conf.ZKUserCaseInsensitiveIndex)-1] != '/' {
 		conf.ZKUserCaseInsensitiveIndex += "/"
 	}
 

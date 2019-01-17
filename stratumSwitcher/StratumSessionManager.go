@@ -48,7 +48,9 @@ type StratumSessionManager struct {
 	zookeeperAutoRegWatchDir string
 	// 当前允许的自动注册用户数（注册一个减1，完成后加回来，到0拒绝自动注册，以防DDoS）
 	autoRegAllowUsers int64
-	// 大小写不敏感的用户名索引
+	// stratum server对子账户名大小写不敏感
+	stratumServerCaseInsensitive bool
+	// 大小写不敏感的用户名索引（仅在 stratumServerCaseInsensitive == false 时用到）
 	zkUserCaseInsensitiveIndex string
 	// 监听的IP和TCP端口
 	tcpListenAddr string
@@ -94,6 +96,7 @@ func NewStratumSessionManager(conf ConfigData, runtimeData RuntimeData) (manager
 	manager.enableUserAutoReg = conf.EnableUserAutoReg
 	manager.zookeeperAutoRegWatchDir = conf.ZKAutoRegWatchDir
 	manager.autoRegAllowUsers = conf.AutoRegMaxWaitUsers
+	manager.stratumServerCaseInsensitive = conf.StratumServerCaseInsensitive
 	manager.zkUserCaseInsensitiveIndex = conf.ZKUserCaseInsensitiveIndex
 	manager.tcpListenAddr = conf.ListenAddr
 	manager.chainType = chainType
@@ -328,6 +331,11 @@ func (manager *StratumSessionManager) Upgradable() {
 
 // GetRegularSubaccountName 获取规范化的(大小写敏感的)子账户名
 func (manager *StratumSessionManager) GetRegularSubaccountName(subAccountName string) string {
+	if manager.stratumServerCaseInsensitive {
+		// sserver对子账户名的大小写不敏感，直接返回小写后的子账户名
+		return strings.ToLower(subAccountName)
+	}
+
 	path := manager.zkUserCaseInsensitiveIndex + strings.ToLower(subAccountName)
 	regularNameBytes, _, err := manager.zookeeperManager.zookeeperConn.Get(path)
 	if err != nil {

@@ -39,6 +39,8 @@ type ConfigData struct {
 	CronIntervalSeconds int
 	// 用户:币种对应表的URL
 	UserCoinMapURL string
+	// 挖矿服务器对子账户名大小写不敏感，此时将总是写入小写的子账户名
+	StratumServerCaseInsensitive bool
 }
 
 // zookeeperConn Zookeeper连接对象
