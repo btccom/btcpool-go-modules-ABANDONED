@@ -83,7 +83,7 @@ func main() {
 	if configData.ZKSwitcherWatchDir[len(configData.ZKSwitcherWatchDir)-1] != '/' {
 		configData.ZKSwitcherWatchDir += "/"
 	}
-	if config.EnableUserAutoReg && configData.ZKAutoRegWatchDir[len(configData.ZKAutoRegWatchDir)-1] != '/' {
+	if configData.EnableUserAutoReg && configData.ZKAutoRegWatchDir[len(configData.ZKAutoRegWatchDir)-1] != '/' {
 		configData.ZKAutoRegWatchDir += "/"
 	}
 	if !configData.StratumServerCaseInsensitive &&
