@@ -15,7 +15,7 @@
     "AuxJobMaker": {
         "CreateAuxBlockIntervalSeconds": 5,
         "AuxPowJobListSize": 1000,
-        "MaxJobTarget": "00000000000000ffffffffffffffffffffffffffffffffffffffffffffffffff"
+        "MaxJobTarget": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
     },
     "Chains": [
         {
