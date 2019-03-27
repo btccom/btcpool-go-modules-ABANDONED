@@ -87,10 +87,11 @@ func RPCCallCreateAuxBlock(rpcInfo ChainRPCInfo) (auxBlockInfo AuxBlockInfo, err
 		auxBlockInfo.ChainID = uint32(chainIDFloat)
 	}
 
-	// ------------ Bits ------------
-
+	// ------------ Bits or Target ------------
 	bitsKey := rpcInfo.CreateAuxBlock.ResponseKeys.Bits
+	targetKey := rpcInfo.CreateAuxBlock.ResponseKeys.Target
 	if len(bitsKey) >= 1 {
+		// Use bits first if exists
 		bits, ok := rpcRawResult[bitsKey]
 		if !ok {
 			err = errors.New("rpc result: missing " + bitsKey)
@@ -102,50 +103,58 @@ func RPCCallCreateAuxBlock(rpcInfo ChainRPCInfo) (auxBlockInfo AuxBlockInfo, err
 			err = errors.New("rpc result: " + bitsKey + " is not a string")
 			return
 		}
-	}
 
-	// ------------ Target ------------
-	var targetStr string
-	targetKey := rpcInfo.CreateAuxBlock.ResponseKeys.Target
-	if len(targetKey) < 1 {
-		targetStr, err = BitsToTarget(auxBlockInfo.Bits)
-		if err != nil {
-			err = errors.New("rpc result: cannot convert bits (" + auxBlockInfo.Bits + ") to target: " + err.Error())
+		// Convert bits to target
+		targetStr, errmsg := BitsToTarget(auxBlockInfo.Bits)
+		if errmsg != nil {
+			err = errors.New("rpc result: cannot convert bits (" + auxBlockInfo.Bits + ") to target: " + errmsg.Error())
 		}
-	} else {
+		targetByte, errmsg := hex.DecodeString(targetStr)
+		if err != nil {
+			err = errors.New("rpc result: targetStr (" + targetStr + ") decode failed: " + errmsg.Error())
+			return
+		}
+		if len(targetByte) != 32 {
+			err = errors.New("rpc result: targetStr (" + targetStr + ") is not a hex of 32 bytes")
+			return
+		}
+		auxBlockInfo.Target.Assign(targetByte)
+
+	} else if len(targetKey) >= 1 {
+		// Bits not exist, use target
 		target, ok := rpcRawResult[targetKey]
 		if !ok {
 			err = errors.New("rpc result: missing " + targetKey)
 			return
 		}
-
-		targetStr, ok = target.(string)
+		targetStr, ok := target.(string)
 		if !ok {
-			err = errors.New("rpc result:  target  is not a string")
+			err = errors.New("rpc result: target is not a string")
 			return
 		}
-	}
+		targetByte, errmsg := hex.DecodeString(targetStr)
+		if err != nil {
+			err = errors.New("rpc result: targetStr (" + targetStr + ") decode failed: " + errmsg.Error())
+			return
+		}
+		if len(targetByte) != 32 {
+			err = errors.New("rpc result: targetStr (" + targetStr + ") is not a hex of 32 bytes")
+			return
+		}
+		auxBlockInfo.Target.Assign(targetByte)
+		// The target string in getauxblock is little endian.
+		auxBlockInfo.Target = auxBlockInfo.Target.Reverse()
 
-	targetByte, err := hex.DecodeString(targetStr)
-	if err != nil {
-		err = errors.New("rpc result: targetStr (" + targetStr + ") decode failed: " + err.Error())
-		return
-	}
-
-	if len(targetByte) != 32 {
-		err = errors.New("rpc result: targetStr (" + targetStr + ") is not a hex of 32 bytes")
-		return
-	}
-
-	auxBlockInfo.Target.Assign(targetByte)
-
-    //----------Bits not exist-------
-	if len(bitsKey) < 1 {
+		// Convert target to bits
 		auxBlockInfo.Bits, err = TargetToBits(targetStr)
 		if err != nil {
 			err = errors.New("rpc result: cannot convert Target ( " + targetStr + ") to bits: " + err.Error())
 			return
 		}
+
+	} else {
+		err = errors.New("wrong configure: the Bits and Target fields cannot be omitted at the same time")
+		return
 	}
 
 	// ------------ Height ------------
