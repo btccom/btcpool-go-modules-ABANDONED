@@ -144,6 +144,7 @@ func RPCCallCreateAuxBlock(rpcInfo ChainRPCInfo) (auxBlockInfo AuxBlockInfo, err
 		auxBlockInfo.Target.Assign(targetByte)
 		// The target string in getauxblock is little endian.
 		auxBlockInfo.Target = auxBlockInfo.Target.Reverse()
+		targetStr = auxBlockInfo.Target.Hex()
 
 		// Convert target to bits
 		auxBlockInfo.Bits, err = TargetToBits(targetStr)
