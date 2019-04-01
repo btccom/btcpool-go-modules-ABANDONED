@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -94,22 +93,30 @@ func main() {
 			log.Printf("Minimal required difficulty for algorithm %s is %s", algo.Name, algo.MinDiff)
 		}
 
-		node := prefix + "/" + strings.ToLower(algo.Name)
-		exists, _, err := c.Exists(node)
+		nodeAlgo := prefix + "/" + strings.ToLower(algo.Name)
+		exists, _, err := c.Exists(nodeAlgo)
 		if err != nil {
-			log.Fatalf("Failed to check ZooKeeper node %s: %v", node, err)
+			log.Fatalf("Failed to check ZooKeeper node %s: %v", nodeAlgo, err)
+		}
+		if !exists {
+			_, err := c.Create(nodeAlgo, []byte{}, 0, zk.WorldACL(zk.PermAll))
+			if err != nil {
+				log.Fatalf("Failed to create ZooKeeper node %s: %v", nodeAlgo, err)
+			}
 		}
 
-		data := []byte(fmt.Sprintf("{\"md\":%s}", algo.MinDiff))
+		nodeMinDiff := nodeAlgo + "/min_difficulty"
+		exists, _, err = c.Exists(nodeMinDiff)
+		data := []byte(algo.MinDiff)
 		if exists {
-			_, err := c.Set(node, data, -1)
+			_, err := c.Set(nodeMinDiff, data, -1)
 			if err != nil {
-				log.Fatalf("Failed to write ZooKeeper node %s: %v", node, err)
+				log.Fatalf("Failed to write ZooKeeper node %s: %v", nodeMinDiff, err)
 			}
 		} else {
-			_, err := c.Create(node, data, 0, zk.WorldACL(zk.PermAll))
+			_, err := c.Create(nodeMinDiff, data, 0, zk.WorldACL(zk.PermAll))
 			if err != nil {
-				log.Fatalf("Failed to create ZooKeeper node %s: %v", node, err)
+				log.Fatalf("Failed to create ZooKeeper node %s: %v", nodeAlgo, err)
 			}
 		}
 	}
