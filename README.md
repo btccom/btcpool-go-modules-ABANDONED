@@ -15,3 +15,7 @@
 # [Merged Mining Proxy](mergedMiningProxy/)
 
 多币种联合挖矿代理，支持域名币（Namecoin）、亦来云（Elastos）等同时与比特币联合挖矿。
+
+# [Init NiceHash] (initNiceHash)
+
+初始化 ZooKeeper 中的 NiceHash 配置，通过调用 NiceHash API 来获取各个算法要求的最小难度，写入 ZooKeeper 以备 sserver 来使用。
