@@ -18,22 +18,17 @@ type Algorithm struct {
 	MinDiff string `json:"min_diff_working"`
 }
 
-type Result struct {
+type Configuration struct {
 	Algorithms []Algorithm
 }
 
 type Reply struct {
-	Result Result `json:"result"`
+	Result Configuration `json:"result"`
 }
 
-func main() {
-	url := flag.String("url", "https://api.nicehash.com/api?method=buy.info", "NiceHash API URL")
-	zookeeper := flag.String("zookeeper", "", "ZooKeeper servers separated by comma")
-	path := flag.String("path", "/nicehash", "ZooKeeper path to store NiceHash configurations")
-	flag.Parse()
-
-	log.Printf("Calling NiceHash API %s", *url)
-	resp, err := http.Get(*url)
+func getNiceHashConfiguration(url string) Configuration {
+	log.Printf("Calling NiceHash API %s", url)
+	resp, err := http.Get(url)
 	if err != nil {
 		log.Fatalf("Failed to call NiceHash API: %v", err)
 	}
@@ -51,19 +46,22 @@ func main() {
 		log.Fatalf("Failed to unmarshal NiceHash API response: %v", err)
 	}
 
-	servers := strings.Split(*zookeeper, ",")
-	if len(*zookeeper) == 0 || len(servers) == 0 {
+	return reply.Result
+}
+
+func populateNiceHashNodes(zookeeper string, path string, config Configuration) {
+	servers := strings.Split(zookeeper, ",")
+	if len(zookeeper) == 0 || len(servers) == 0 {
 		log.Print("ZooKeeper servers are not specificed, exit now")
 		return
 	}
-
 	c, _, err := zk.Connect(servers, time.Second*5)
 	if err != nil {
 		log.Fatalf("Failed to connect to ZooKeeper: %v", err)
 	}
 	defer c.Close()
 
-	dirs := strings.Split(*path, "/")
+	dirs := strings.Split(path, "/")
 	prefix := ""
 	for _, dir := range dirs {
 		if len(dir) != 0 {
@@ -83,17 +81,21 @@ func main() {
 		}
 	}
 
-	for _, algo := range reply.Result.Algorithms {
-		_, err1 := strconv.ParseUint(algo.MinDiff, 10, 64)
-		_, err2 := strconv.ParseFloat(algo.MinDiff, 64)
-		if err1 != nil && err2 != nil {
+	for _, algo := range config.Algorithms {
+		minDiff, err := strconv.ParseFloat(algo.MinDiff, 64)
+		if err != nil {
 			log.Printf("Minimal required difficulty for algorithm %s is not a number: %s", algo.Name, algo.MinDiff)
 			continue
 		} else {
 			log.Printf("Minimal required difficulty for algorithm %s is %s", algo.Name, algo.MinDiff)
 		}
 
-		nodeAlgo := prefix + "/" + strings.ToLower(algo.Name)
+		algoName := strings.ToLower(algo.Name)
+		if algoName == "daggerhashimoto" {
+			minDiff *= 4294967296
+		}
+
+		nodeAlgo := prefix + "/" + algoName
 		exists, _, err := c.Exists(nodeAlgo)
 		if err != nil {
 			log.Fatalf("Failed to check ZooKeeper node %s: %v", nodeAlgo, err)
@@ -107,7 +109,7 @@ func main() {
 
 		nodeMinDiff := nodeAlgo + "/min_difficulty"
 		exists, _, err = c.Exists(nodeMinDiff)
-		data := []byte(algo.MinDiff)
+		data := []byte(strconv.FormatUint(uint64(minDiff), 10))
 		if exists {
 			_, err := c.Set(nodeMinDiff, data, -1)
 			if err != nil {
@@ -116,8 +118,17 @@ func main() {
 		} else {
 			_, err := c.Create(nodeMinDiff, data, 0, zk.WorldACL(zk.PermAll))
 			if err != nil {
-				log.Fatalf("Failed to create ZooKeeper node %s: %v", nodeAlgo, err)
+				log.Fatalf("Failed to create ZooKeeper node %s: %v", nodeMinDiff, err)
 			}
 		}
 	}
+}
+
+func main() {
+	url := flag.String("url", "https://api.nicehash.com/api?method=buy.info", "NiceHash API URL")
+	zookeeper := flag.String("zookeeper", "", "ZooKeeper servers separated by comma")
+	path := flag.String("path", "/nicehash", "ZooKeeper path to store NiceHash configurations")
+	flag.Parse()
+
+	populateNiceHashNodes(*zookeeper, *path, getNiceHashConfiguration(*url))
 }
