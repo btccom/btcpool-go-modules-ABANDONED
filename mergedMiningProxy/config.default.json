@@ -15,12 +15,17 @@
     "AuxJobMaker": {
         "CreateAuxBlockIntervalSeconds": 5,
         "AuxPowJobListSize": 1000,
-        "MaxJobTarget": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+        "MaxJobTarget": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "BlockHashPublishPort": "5555",
+        "TxHashPublishPort":"5554"
     },
     "Chains": [
         {
             "Name": "Namecoin",
             "AuxTableName" :"found_nmc_blocks",
+            "IsSupportZmq" : true,
+            "SubBlockHashAddress" : "127.0.0.1",
+            "SubBlockHashPort" :"1234",
             "RPCServer":{
                 "URL": "http://127.0.0.1:8444/",
                 "User": "test",

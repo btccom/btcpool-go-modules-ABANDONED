@@ -11,6 +11,8 @@ import (
 
 	"merkle-tree-and-bitcoin/hash"
 	"merkle-tree-and-bitcoin/merkle"
+
+	zmq "github.com/pebbe/zmq4"
 )
 
 // AuxPowInfo 辅助工作量证明的信息
@@ -54,6 +56,8 @@ type AuxJobMaker struct {
 
 	minJobBits   string
 	maxJobTarget hash.Byte32
+	hashBlockPublisher    *zmq.Socket
+	hashTxPublisher       *zmq.Socket
 }
 
 // NewAuxJobMaker 创建辅助挖矿任务构造器
@@ -73,6 +77,15 @@ func NewAuxJobMaker(config AuxJobMakerInfo, chains []ChainRPCInfo) (maker *AuxJo
 	maker.maxJobTarget.Assign(hexBytes)
 	maker.minJobBits, _ = TargetToBits(maker.maxJobTarget.Hex())
 	glog.Info("Max Job Target: ", maker.maxJobTarget.Hex(), ", Bits: ", maker.minJobBits)
+
+	maker.hashBlockPublisher, _ = zmq.NewSocket(zmq.PUB)
+
+	address := "tcp://*:" + config.BlockHashPublishPort
+	maker.hashBlockPublisher.Bind(address)
+
+	maker.hashTxPublisher, _ = zmq.NewSocket(zmq.PUB)
+	address = "tcp://*:" + config.TxHashPublishPort
+	maker.hashTxPublisher.Bind(address)
 
 	return
 }
@@ -137,7 +150,13 @@ func (maker *AuxJobMaker) updateAuxBlock(index int) {
 		maker.chainIDIndexSlots = nil
 	}
 
+	oldAuxBlockInfo := maker.currentAuxBlocks[index];
+
 	maker.currentAuxBlocks[index] = auxBlockInfo
+	if auxBlockInfo.Height >  oldAuxBlockInfo.Height {
+		maker.hashBlockPublisher.Send("hashblock", zmq.SNDMORE)
+		maker.hashBlockPublisher.Send(auxBlockInfo.Hash.Hex(), 0)
+	}
 	maker.lock.Unlock()
 
 	if glog.V(3) {
@@ -148,14 +167,57 @@ func (maker *AuxJobMaker) updateAuxBlock(index int) {
 
 // updateAuxBlockAllChains 持续更新所有链的辅助区块
 func (maker *AuxJobMaker) updateAuxBlockAllChains() {
+
+   	go func () {
+   		for {
+   			maker.hashTxPublisher.Send("hashtx", zmq.SNDMORE)
+			maker.hashTxPublisher.Send("zmq connect ok", 0)
+			time.Sleep(time.Duration(maker.config.CreateAuxBlockIntervalSeconds) * time.Second)
+   		}
+   	}()
+
 	for i := 0; i < len(maker.chains); i++ {
 		go func(index int) {
+			chainsupportzmq := maker.chains[index].IsSupportZmq
+			subscriber, _ := zmq.NewSocket(zmq.SUB)
+			connected := true
+			defer subscriber.Close()
+			if chainsupportzmq {
+				ip := maker.chains[index].SubBlockHashAddress
+				port := maker.chains[index].SubBlockHashPort
+				address := "tcp://" + ip + port
+				err := subscriber.Connect(address)
+				if err != nil {
+	        		glog.Info("[error] ", maker.chains[index].Name, " cannot connect to : ", address)
+	        		connected = false
+				}
+				subscriber.SetSubscribe("hashblock")
+			}
+
 			for {
+				if chainsupportzmq && connected {
+					msgtype, err := subscriber.Recv(0)
+					if err != nil {
+						glog.Info("[error] when ", maker.chains[index].Name, " recv type msg ", msgtype)
+						continue
+					}
+					content, e := subscriber.Recv(0)
+					if e != nil {
+						glog.Info("[error] when ", maker.chains[index].Name, " recv content msg ", content)
+						continue
+					}
+					if content != "hashblock" {
+						continue
+					}
+				} else {
+					time.Sleep(time.Duration(maker.config.CreateAuxBlockIntervalSeconds) * time.Second)
+				}
 				maker.updateAuxBlock(index)
-				time.Sleep(time.Duration(maker.config.CreateAuxBlockIntervalSeconds) * time.Second)
 			}
 		}(i)
 	}
+
+
 }
 
 // makeAuxJob 构造辅助挖矿任务

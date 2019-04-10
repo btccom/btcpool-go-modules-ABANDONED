@@ -60,6 +60,10 @@ type ChainRPCInfo struct {
 	RPCServer      ChainRPCServer
 	CreateAuxBlock RPCCreateAuxBlockInfo
 	SubmitAuxBlock RPCSubmitAuxBlockInfo
+	SubBlockHashAddress string
+	SubBlockHashPort    string
+	IsSupportZmq        bool
+
 }
 
 // ProxyRPCServer 该代理的RPC服务器信息
@@ -76,6 +80,8 @@ type AuxJobMakerInfo struct {
 	CreateAuxBlockIntervalSeconds uint
 	AuxPowJobListSize             uint
 	MaxJobTarget                  string
+	BlockHashPublishPort          string
+	TxHashPublishPort             string
 }
 
 // ConfigData 配置文件的数据结构
