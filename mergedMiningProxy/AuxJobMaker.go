@@ -78,15 +78,20 @@ func NewAuxJobMaker(config AuxJobMakerInfo, chains []ChainRPCInfo) (maker *AuxJo
 	maker.minJobBits, _ = TargetToBits(maker.maxJobTarget.Hex())
 	glog.Info("Max Job Target: ", maker.maxJobTarget.Hex(), ", Bits: ", maker.minJobBits)
 
-	maker.hashBlockPublisher, _ = zmq.NewSocket(zmq.PUB)
+	hashBlockPublisher, err := zmq.NewSocket(zmq.PUB)
+	if err != nil {
+		glog.Info(" create hashBlockPublisher handle failed！ ", err)
+		return
+	}
+	maker.hashBlockPublisher = hashBlockPublisher
 
 	address := "tcp://*:" + config.BlockHashPublishPort
-	maker.hashBlockPublisher.Bind(address)
+	glog.Info("hashBlockPublisher address : ", address)
 
-	maker.hashTxPublisher, _ = zmq.NewSocket(zmq.PUB)
-	address = "tcp://*:" + config.TxHashPublishPort
-	maker.hashTxPublisher.Bind(address)
-
+	err = maker.hashBlockPublisher.Bind(address)
+	if err != nil {
+		glog.Info(" bind hashTxPublisher handle failed！", err)
+	}
 	return
 }
 
@@ -153,9 +158,15 @@ func (maker *AuxJobMaker) updateAuxBlock(index int) {
 	oldAuxBlockInfo := maker.currentAuxBlocks[index];
 
 	maker.currentAuxBlocks[index] = auxBlockInfo
+
 	if auxBlockInfo.Height >  oldAuxBlockInfo.Height {
+		// log.Println("send blockhash : ", auxBlockInfo.Hash.Hex())
 		maker.hashBlockPublisher.Send("hashblock", zmq.SNDMORE)
-		maker.hashBlockPublisher.Send(auxBlockInfo.Hash.Hex(), 0)
+		auxBlockInfo.Hash = auxBlockInfo.Hash.Reverse()
+		senddata := auxBlockInfo.Hash.Hex()
+		auxBlockInfo.Hash = auxBlockInfo.Hash.Reverse()
+		hashByte, _ := hex.DecodeString(senddata)
+		maker.hashBlockPublisher.SendBytes(hashByte, 0)
 	}
 	maker.lock.Unlock()
 
@@ -169,55 +180,99 @@ func (maker *AuxJobMaker) updateAuxBlock(index int) {
 func (maker *AuxJobMaker) updateAuxBlockAllChains() {
 
    	go func () {
+   		hashTxPublisher, err := zmq.NewSocket(zmq.PUB)
+   		defer hashTxPublisher.Close()
+		if err != nil {
+			glog.Info(" create hashTxPublisher handle failed！", err)
+			return
+		}
+		address := "tcp://*:" + maker.config.TxHashPublishPort
+		glog.Info("hashTxPublisher address : ", address)
+		err = hashTxPublisher.Bind(address)
+		if err != nil {
+			glog.Info(" bind hashTxPublisher handle failed！", err)
+			return
+		}
    		for {
-   			maker.hashTxPublisher.Send("hashtx", zmq.SNDMORE)
-			maker.hashTxPublisher.Send("zmq connect ok", 0)
+   			hashTxPublisher.Send("hashtx", zmq.SNDMORE)
+			hashTxPublisher.Send("zmq connect ok", 0)
 			time.Sleep(time.Duration(maker.config.CreateAuxBlockIntervalSeconds) * time.Second)
    		}
    	}()
 
 	for i := 0; i < len(maker.chains); i++ {
 		go func(index int) {
-			chainsupportzmq := maker.chains[index].IsSupportZmq
-			subscriber, _ := zmq.NewSocket(zmq.SUB)
-			connected := true
-			defer subscriber.Close()
-			if chainsupportzmq {
-				ip := maker.chains[index].SubBlockHashAddress
-				port := maker.chains[index].SubBlockHashPort
-				address := "tcp://" + ip + port
-				err := subscriber.Connect(address)
-				if err != nil {
-	        		glog.Info("[error] ", maker.chains[index].Name, " cannot connect to : ", address)
-	        		connected = false
-				}
-				subscriber.SetSubscribe("hashblock")
-			}
-
-			for {
-				if chainsupportzmq && connected {
-					msgtype, err := subscriber.Recv(0)
+			zmqsignalchanel := make(chan string)
+			timeoutchanel := make(chan string)
+			go func(out chan<- string) {
+				chainsupportzmq := maker.chains[index].IsSupportZmq
+				subscriber, _ := zmq.NewSocket(zmq.SUB)
+				connected := true
+				defer subscriber.Close()
+				if chainsupportzmq {
+					ip := maker.chains[index].SubBlockHashAddress
+					port := maker.chains[index].SubBlockHashPort
+					address := "tcp://" + ip + ":"+ port
+					glog.Info("address : ",address)
+					err := subscriber.Connect(address)
 					if err != nil {
-						glog.Info("[error] when ", maker.chains[index].Name, " recv type msg ", msgtype)
-						continue
+	        			glog.Info("[error] ", maker.chains[index].Name, " cannot connect to : ", address)
+	        			connected = false
 					}
-					content, e := subscriber.Recv(0)
-					if e != nil {
-						glog.Info("[error] when ", maker.chains[index].Name, " recv content msg ", content)
-						continue
-					}
-					if content != "hashblock" {
-						continue
-					}
-				} else {
-					time.Sleep(time.Duration(maker.config.CreateAuxBlockIntervalSeconds) * time.Second)
+					glog.Info("[OK] ", maker.chains[index].Name, " connected to : ", address)
+					subscriber.SetSubscribe("hashblock")
 				}
-				maker.updateAuxBlock(index)
+
+				if chainsupportzmq && connected {
+					for {
+						msgtype, err := subscriber.Recv(0)
+						if err != nil {
+							glog.Info("[error] when ", maker.chains[index].Name, " recv type msg ", msgtype)
+							continue
+						}
+						//glog.Info("[OK] ", maker.chains[index].Name, " receive msgtype : ", msgtype)
+						content, e := subscriber.Recv(0)
+						if e != nil {
+							glog.Info("[error] when ", maker.chains[index].Name, " recv content msg ", content)
+							continue
+						}
+						//glog.Info("[OK] ", maker.chains[index].Name, " receive first msgcontent : ", content)
+
+						content, e = subscriber.Recv(0)
+						if e != nil {
+							glog.Info("[error] when ", maker.chains[index].Name, " recv content msg ", content)
+							continue
+						}
+						//glog.Info("[OK] ", maker.chains[index].Name, " receive second msgcontent : ", content)
+
+						if msgtype != "hashblock" {
+							glog.Info("[ERROR] ", maker.chains[index].Name, " receive msgcontent : ", msgtype, "is not hashblock")
+							continue
+						}
+
+						out <- "ok"
+					}
+				}
+			}(zmqsignalchanel)
+
+			go func(out chan<- string) {
+				for {
+					time.Sleep(time.Duration(maker.config.CreateAuxBlockIntervalSeconds) * time.Second)
+					out <- "ok"
+				}
+			}(timeoutchanel)
+			for {
+				select {
+					case <- zmqsignalchanel:
+						// glog.Info("[ok] recv msg from zmq chanel ---> ", msg)
+						maker.updateAuxBlock(index)
+					case <- timeoutchanel:
+						// glog.Info("[ok] recv msg from timeout chanel ", signal)
+						maker.updateAuxBlock(index)
+				}
 			}
-		}(i)
+		}(i) 
 	}
-
-
 }
 
 // makeAuxJob 构造辅助挖矿任务

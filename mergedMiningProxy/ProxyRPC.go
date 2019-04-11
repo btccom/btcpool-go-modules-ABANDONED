@@ -295,8 +295,8 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 }
 
 func runHTTPServer(config ProxyRPCServer, auxJobMaker *AuxJobMaker) {
-	handle := NewProxyRPCHandle(config, auxJobMaker)
 
+	handle := NewProxyRPCHandle(config, auxJobMaker)
 	// HTTP监听
 	glog.Info("Listen HTTP ", config.ListenAddr)
 	err := http.ListenAndServe(config.ListenAddr, handle)
