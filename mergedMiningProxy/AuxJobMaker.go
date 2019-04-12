@@ -56,8 +56,7 @@ type AuxJobMaker struct {
 
 	minJobBits   string
 	maxJobTarget hash.Byte32
-	hashBlockPublisher    *zmq.Socket
-	hashTxPublisher       *zmq.Socket
+	blockHashChnel     chan string
 }
 
 // NewAuxJobMaker 创建辅助挖矿任务构造器
@@ -77,21 +76,8 @@ func NewAuxJobMaker(config AuxJobMakerInfo, chains []ChainRPCInfo) (maker *AuxJo
 	maker.maxJobTarget.Assign(hexBytes)
 	maker.minJobBits, _ = TargetToBits(maker.maxJobTarget.Hex())
 	glog.Info("Max Job Target: ", maker.maxJobTarget.Hex(), ", Bits: ", maker.minJobBits)
+	maker.blockHashChnel = make(chan string)
 
-	hashBlockPublisher, err := zmq.NewSocket(zmq.PUB)
-	if err != nil {
-		glog.Info(" create hashBlockPublisher handle failed！ ", err)
-		return
-	}
-	maker.hashBlockPublisher = hashBlockPublisher
-
-	address := "tcp://*:" + config.BlockHashPublishPort
-	glog.Info("hashBlockPublisher address : ", address)
-
-	err = maker.hashBlockPublisher.Bind(address)
-	if err != nil {
-		glog.Info(" bind hashTxPublisher handle failed！", err)
-	}
 	return
 }
 
@@ -160,13 +146,10 @@ func (maker *AuxJobMaker) updateAuxBlock(index int) {
 	maker.currentAuxBlocks[index] = auxBlockInfo
 
 	if auxBlockInfo.Height >  oldAuxBlockInfo.Height {
-		// log.Println("send blockhash : ", auxBlockInfo.Hash.Hex())
-		maker.hashBlockPublisher.Send("hashblock", zmq.SNDMORE)
+		// glog.Info("send blockhash : ", auxBlockInfo.Hash.Hex())
 		auxBlockInfo.Hash = auxBlockInfo.Hash.Reverse()
-		senddata := auxBlockInfo.Hash.Hex()
+		maker.blockHashChnel <- auxBlockInfo.Hash.Hex()
 		auxBlockInfo.Hash = auxBlockInfo.Hash.Reverse()
-		hashByte, _ := hex.DecodeString(senddata)
-		maker.hashBlockPublisher.SendBytes(hashByte, 0)
 	}
 	maker.lock.Unlock()
 
@@ -179,24 +162,41 @@ func (maker *AuxJobMaker) updateAuxBlock(index int) {
 // updateAuxBlockAllChains 持续更新所有链的辅助区块
 func (maker *AuxJobMaker) updateAuxBlockAllChains() {
 
+
    	go func () {
-   		hashTxPublisher, err := zmq.NewSocket(zmq.PUB)
-   		defer hashTxPublisher.Close()
+   		txHashChnel := make(chan string)
+   		defer close(txHashChnel)
+   		notifyPublisher, err := zmq.NewSocket(zmq.PUB)
+   		defer notifyPublisher.Close()
 		if err != nil {
-			glog.Info(" create hashTxPublisher handle failed！", err)
+			glog.Info(" create notifyPublisher handle failed！", err)
 			return
 		}
-		address := "tcp://*:" + maker.config.TxHashPublishPort
-		glog.Info("hashTxPublisher address : ", address)
-		err = hashTxPublisher.Bind(address)
+		address := "tcp://*:" + maker.config.BlockHashPublishPort
+		glog.Info("notifyPublisher address : ", address)
+		err = notifyPublisher.Bind(address)
 		if err != nil {
-			glog.Info(" bind hashTxPublisher handle failed！", err)
+			glog.Info(" bind notifyPublisher handle failed！", err)
 			return
 		}
+
+		go func (out chan<- string) {
+			for {
+				time.Sleep(time.Duration(maker.config.CreateAuxBlockIntervalSeconds) * time.Second)
+				out <- "connect ok!"
+			}
+		}(txHashChnel)
+
    		for {
-   			hashTxPublisher.Send("hashtx", zmq.SNDMORE)
-			hashTxPublisher.Send("zmq connect ok", 0)
-			time.Sleep(time.Duration(maker.config.CreateAuxBlockIntervalSeconds) * time.Second)
+   			select {
+   			case txhashmsg := <- txHashChnel:
+				notifyPublisher.Send("hashtx", zmq.SNDMORE)
+				notifyPublisher.Send(txhashmsg, 0)
+			case blockhashmsg := <- maker.blockHashChnel:
+				hashByte, _ := hex.DecodeString(blockhashmsg)
+				notifyPublisher.Send("hashblock", zmq.SNDMORE)
+				notifyPublisher.SendBytes(hashByte, 0)
+   			}
    		}
    	}()
 
@@ -222,7 +222,6 @@ func (maker *AuxJobMaker) updateAuxBlockAllChains() {
 					glog.Info("[OK] ", maker.chains[index].Name, " connected to : ", address)
 					subscriber.SetSubscribe("hashblock")
 				}
-
 				if chainsupportzmq && connected {
 					for {
 						msgtype, err := subscriber.Recv(0)
@@ -254,20 +253,20 @@ func (maker *AuxJobMaker) updateAuxBlockAllChains() {
 					}
 				}
 			}(zmqsignalchanel)
-
 			go func(out chan<- string) {
 				for {
 					time.Sleep(time.Duration(maker.config.CreateAuxBlockIntervalSeconds) * time.Second)
 					out <- "ok"
 				}
 			}(timeoutchanel)
+
 			for {
 				select {
 					case <- zmqsignalchanel:
-						// glog.Info("[ok] recv msg from zmq chanel ---> ", msg)
+						//glog.Info("[ok] recv msg from zmq chanel ---> ")
 						maker.updateAuxBlock(index)
 					case <- timeoutchanel:
-						// glog.Info("[ok] recv msg from timeout chanel ", signal)
+						//glog.Info("[ok] recv msg from timeout chanel ")
 						maker.updateAuxBlock(index)
 				}
 			}

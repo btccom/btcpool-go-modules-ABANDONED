@@ -81,7 +81,6 @@ type AuxJobMakerInfo struct {
 	AuxPowJobListSize             uint
 	MaxJobTarget                  string
 	BlockHashPublishPort          string
-	TxHashPublishPort             string
 }
 
 // ConfigData 配置文件的数据结构

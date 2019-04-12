@@ -17,7 +17,6 @@
         "AuxPowJobListSize": 1000,
         "MaxJobTarget": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
         "BlockHashPublishPort": "5555",
-        "TxHashPublishPort":"5554"
     },
     "Chains": [
         {
