@@ -11,6 +11,8 @@ import (
 
 	"merkle-tree-and-bitcoin/hash"
 	"merkle-tree-and-bitcoin/merkle"
+
+	zmq "github.com/pebbe/zmq4"
 )
 
 // AuxPowInfo 辅助工作量证明的信息
@@ -54,6 +56,7 @@ type AuxJobMaker struct {
 
 	minJobBits   string
 	maxJobTarget hash.Byte32
+	blockHashChnel     chan string
 }
 
 // NewAuxJobMaker 创建辅助挖矿任务构造器
@@ -73,6 +76,7 @@ func NewAuxJobMaker(config AuxJobMakerInfo, chains []ChainRPCInfo) (maker *AuxJo
 	maker.maxJobTarget.Assign(hexBytes)
 	maker.minJobBits, _ = TargetToBits(maker.maxJobTarget.Hex())
 	glog.Info("Max Job Target: ", maker.maxJobTarget.Hex(), ", Bits: ", maker.minJobBits)
+	maker.blockHashChnel = make(chan string)
 
 	return
 }
@@ -137,7 +141,16 @@ func (maker *AuxJobMaker) updateAuxBlock(index int) {
 		maker.chainIDIndexSlots = nil
 	}
 
+	oldAuxBlockInfo := maker.currentAuxBlocks[index];
+
 	maker.currentAuxBlocks[index] = auxBlockInfo
+
+	if auxBlockInfo.Height >  oldAuxBlockInfo.Height {
+		// glog.Info("send blockhash : ", auxBlockInfo.Hash.Hex())
+		auxBlockInfo.Hash = auxBlockInfo.Hash.Reverse()
+		maker.blockHashChnel <- auxBlockInfo.Hash.Hex()
+		auxBlockInfo.Hash = auxBlockInfo.Hash.Reverse()
+	}
 	maker.lock.Unlock()
 
 	if glog.V(3) {
@@ -148,13 +161,116 @@ func (maker *AuxJobMaker) updateAuxBlock(index int) {
 
 // updateAuxBlockAllChains 持续更新所有链的辅助区块
 func (maker *AuxJobMaker) updateAuxBlockAllChains() {
+
+
+   	go func () {
+   		txHashChnel := make(chan string)
+   		defer close(txHashChnel)
+   		notifyPublisher, err := zmq.NewSocket(zmq.PUB)
+   		defer notifyPublisher.Close()
+		if err != nil {
+			glog.Info(" create notifyPublisher handle failed！", err)
+			return
+		}
+		address := "tcp://*:" + maker.config.BlockHashPublishPort
+		glog.Info("notifyPublisher address : ", address)
+		err = notifyPublisher.Bind(address)
+		if err != nil {
+			glog.Info(" bind notifyPublisher handle failed！", err)
+			return
+		}
+
+		go func (out chan<- string) {
+			for {
+				time.Sleep(time.Duration(maker.config.CreateAuxBlockIntervalSeconds) * time.Second)
+				out <- "connect ok!"
+			}
+		}(txHashChnel)
+
+   		for {
+   			select {
+   			case txhashmsg := <- txHashChnel:
+				notifyPublisher.Send("hashtx", zmq.SNDMORE)
+				notifyPublisher.Send(txhashmsg, 0)
+			case blockhashmsg := <- maker.blockHashChnel:
+				hashByte, _ := hex.DecodeString(blockhashmsg)
+				notifyPublisher.Send("hashblock", zmq.SNDMORE)
+				notifyPublisher.SendBytes(hashByte, 0)
+   			}
+   		}
+   	}()
+
 	for i := 0; i < len(maker.chains); i++ {
 		go func(index int) {
+			zmqsignalchanel := make(chan string)
+			timeoutchanel := make(chan string)
+			go func(out chan<- string) {
+				chainsupportzmq := maker.chains[index].IsSupportZmq
+				subscriber, _ := zmq.NewSocket(zmq.SUB)
+				connected := true
+				defer subscriber.Close()
+				if chainsupportzmq {
+					ip := maker.chains[index].SubBlockHashAddress
+					port := maker.chains[index].SubBlockHashPort
+					address := "tcp://" + ip + ":"+ port
+					glog.Info("address : ",address)
+					err := subscriber.Connect(address)
+					if err != nil {
+	        			glog.Info("[error] ", maker.chains[index].Name, " cannot connect to : ", address)
+	        			connected = false
+					}
+					glog.Info("[OK] ", maker.chains[index].Name, " connected to : ", address)
+					subscriber.SetSubscribe("hashblock")
+				}
+				if chainsupportzmq && connected {
+					for {
+						msgtype, err := subscriber.Recv(0)
+						if err != nil {
+							glog.Info("[error] when ", maker.chains[index].Name, " recv type msg ", msgtype)
+							continue
+						}
+						//glog.Info("[OK] ", maker.chains[index].Name, " receive msgtype : ", msgtype)
+						content, e := subscriber.Recv(0)
+						if e != nil {
+							glog.Info("[error] when ", maker.chains[index].Name, " recv content msg ", content)
+							continue
+						}
+						//glog.Info("[OK] ", maker.chains[index].Name, " receive first msgcontent : ", content)
+
+						content, e = subscriber.Recv(0)
+						if e != nil {
+							glog.Info("[error] when ", maker.chains[index].Name, " recv content msg ", content)
+							continue
+						}
+						//glog.Info("[OK] ", maker.chains[index].Name, " receive second msgcontent : ", content)
+
+						if msgtype != "hashblock" {
+							glog.Info("[ERROR] ", maker.chains[index].Name, " receive msgcontent : ", msgtype, "is not hashblock")
+							continue
+						}
+
+						out <- "ok"
+					}
+				}
+			}(zmqsignalchanel)
+			go func(out chan<- string) {
+				for {
+					time.Sleep(time.Duration(maker.config.CreateAuxBlockIntervalSeconds) * time.Second)
+					out <- "ok"
+				}
+			}(timeoutchanel)
+
 			for {
-				maker.updateAuxBlock(index)
-				time.Sleep(time.Duration(maker.config.CreateAuxBlockIntervalSeconds) * time.Second)
+				select {
+					case <- zmqsignalchanel:
+						//glog.Info("[ok] recv msg from zmq chanel ---> ")
+						maker.updateAuxBlock(index)
+					case <- timeoutchanel:
+						//glog.Info("[ok] recv msg from timeout chanel ")
+						maker.updateAuxBlock(index)
+				}
 			}
-		}(i)
+		}(i) 
 	}
 }
 

@@ -249,23 +249,29 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 					}
 				}
 
-				response, err := RPCCall(chain.RPCServer, chain.SubmitAuxBlock.Method, params)
+				responseJSON, _ := RPCCall(chain.RPCServer, chain.SubmitAuxBlock.Method, params)
 
 				{
+					response, err := ParseRPCResponse(responseJSON)
 					var submitauxblockinfo SubmitAuxBlockInfo
-					submitauxblockinfo.AuxBlockTableName = handle.auxJobMaker.chains[index].AuxTableName
-					if handle.config.MainChain == "LTC" {
-						submitauxblockinfo.ParentChainBllockHash = HexToString(ArrayReverse(DoubleSHA256(auxPowData.parentBlock)))
+					if response.Error != nil {
+						glog.Warning("RPC result : " + string(responseJSON))
 					} else {
-						submitauxblockinfo.ParentChainBllockHash = auxPowData.blockHash.Hex()
-					}
 
-					submitauxblockinfo.AuxChainBlockHash = extAuxPow.Hash.Hex()
-					submitauxblockinfo.AuxPow = auxPowHex
-					submitauxblockinfo.CurrentTime = time.Now().Format("2006-01-02 15:04:05") 
+						submitauxblockinfo.AuxBlockTableName = handle.auxJobMaker.chains[index].AuxTableName
+						if handle.config.MainChain == "LTC" {
+							submitauxblockinfo.ParentChainBllockHash = HexToString(ArrayReverse(DoubleSHA256(auxPowData.parentBlock)))
+						} else {
+							submitauxblockinfo.ParentChainBllockHash = auxPowData.blockHash.Hex()
+						}
 
-					if ok = handle.dbhandle.InsertAuxBlock(submitauxblockinfo); !ok {
-						glog.Warning("Insert AuxBlock to db failed!")
+						submitauxblockinfo.AuxChainBlockHash = extAuxPow.Hash.Hex()
+						submitauxblockinfo.AuxPow = auxPowHex
+						submitauxblockinfo.CurrentTime = time.Now().Format("2006-01-02 15:04:05") 
+
+						if ok = handle.dbhandle.InsertAuxBlock(submitauxblockinfo); !ok {
+							glog.Warning("Insert AuxBlock to db failed!")
+						}
 					}
 
 					glog.Info(
@@ -274,7 +280,7 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 						", hash: ", extAuxPow.Hash.Hex(),
 						", parentBlockHash: ", submitauxblockinfo.ParentChainBllockHash,
 						", target: ", extAuxPow.Target.Hex(),
-						", response: ", string(response),
+						", response: ", string(responseJSON),
 						", errmsg: ", err)
 				}
 
@@ -295,8 +301,8 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 }
 
 func runHTTPServer(config ProxyRPCServer, auxJobMaker *AuxJobMaker) {
-	handle := NewProxyRPCHandle(config, auxJobMaker)
 
+	handle := NewProxyRPCHandle(config, auxJobMaker)
 	// HTTP监听
 	glog.Info("Listen HTTP ", config.ListenAddr)
 	err := http.ListenAndServe(config.ListenAddr, handle)

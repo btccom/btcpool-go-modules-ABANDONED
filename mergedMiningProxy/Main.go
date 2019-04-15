@@ -22,7 +22,6 @@ func main() {
 	// 运行任务生成器
 	auxJobMaker := NewAuxJobMaker(configData.AuxJobMaker, configData.Chains)
 	auxJobMaker.Run()
-
 	// 启动 RPC Server
 	runHTTPServer(configData.RPCServer, auxJobMaker)
 }
