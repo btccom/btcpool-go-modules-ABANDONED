@@ -47,6 +47,11 @@ type ConfigData struct {
 	// ZKUserCaseInsensitiveIndex 大小写不敏感的子账户索引
 	//（可空，仅在 StratumServerCaseInsensitive == false 时用到）
 	ZKUserCaseInsensitiveIndex string
+
+	// 是否启用 API Server
+	EnableAPIServer bool
+	// API Server 的监听IP:端口
+	ListenAddr string
 }
 
 // zookeeperConn Zookeeper连接对象
@@ -138,6 +143,12 @@ func main() {
 	if configData.EnableUserAutoReg {
 		waitGroup.Add(1)
 		go RunUserAutoReg(configData)
+	}
+
+	// 启动子账户列表API
+	if configData.EnableAPIServer {
+		waitGroup.Add(1)
+		go runAPIServer()
 	}
 
 	waitGroup.Wait()

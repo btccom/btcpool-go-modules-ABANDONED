@@ -12,6 +12,10 @@ import (
 	"github.com/samuel/go-zookeeper/zk"
 )
 
+// #cgo CXXFLAGS: -std=c++11
+// #include "UserListJSON.h"
+import "C"
+
 // UserIDMapResponse 用户id列表接口响应的数据结构
 type UserIDMapResponse struct {
 	ErrNo  int            `json:"err_no"`
@@ -30,7 +34,7 @@ type UserIDMapEmptyResponse struct {
 func InitUserCoin(coin string, url string) {
 	defer waitGroup.Done()
 
-	// 上次请求接口的时间
+	// 上次请求的最大puid
 	lastPUID := 0
 
 	for {
@@ -100,6 +104,8 @@ func InitUserCoin(coin string, url string) {
 				if puid > lastPUID {
 					lastPUID = puid
 				}
+
+				C.addUser(C.int(puid), C.CString(puname))
 			}
 
 			glog.Info("Finish: ", coin, "; User Num: ", len(userIDMapResponse.Data), "; ", url)
