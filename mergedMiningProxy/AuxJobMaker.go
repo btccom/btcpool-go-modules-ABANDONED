@@ -146,7 +146,7 @@ func (maker *AuxJobMaker) updateAuxBlock(index int) {
 	maker.currentAuxBlocks[index] = auxBlockInfo
 
 	if auxBlockInfo.Height >  oldAuxBlockInfo.Height {
-		// glog.Info("send blockhash : ", auxBlockInfo.Hash.Hex())
+		glog.Info("send blockhash : ", auxBlockInfo.Hash.Hex())
 		auxBlockInfo.Hash = auxBlockInfo.Hash.Reverse()
 		maker.blockHashChnel <- auxBlockInfo.Hash.Hex()
 		auxBlockInfo.Hash = auxBlockInfo.Hash.Reverse()
