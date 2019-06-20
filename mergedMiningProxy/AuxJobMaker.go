@@ -229,20 +229,20 @@ func (maker *AuxJobMaker) updateAuxBlockAllChains() {
 							glog.Info("[error] when ", maker.chains[index].Name, " recv type msg ", msgtype)
 							continue
 						}
-						//glog.Info("[OK] ", maker.chains[index].Name, " receive msgtype : ", msgtype)
+						glog.Info("[OK] ", maker.chains[index].Name, " receive msgtype : ", msgtype)
 						content, e := subscriber.Recv(0)
 						if e != nil {
 							glog.Info("[error] when ", maker.chains[index].Name, " recv content msg ", content)
 							continue
 						}
-						//glog.Info("[OK] ", maker.chains[index].Name, " receive first msgcontent : ", content)
+						glog.Info("[OK] ", maker.chains[index].Name, " receive first msgcontent : ", content)
 
 						content, e = subscriber.Recv(0)
 						if e != nil {
 							glog.Info("[error] when ", maker.chains[index].Name, " recv content msg ", content)
 							continue
 						}
-						//glog.Info("[OK] ", maker.chains[index].Name, " receive second msgcontent : ", content)
+						glog.Info("[OK] ", maker.chains[index].Name, " receive second msgcontent : ", content)
 
 						if msgtype != "hashblock" {
 							glog.Info("[ERROR] ", maker.chains[index].Name, " receive msgcontent : ", msgtype, "is not hashblock")
@@ -263,7 +263,7 @@ func (maker *AuxJobMaker) updateAuxBlockAllChains() {
 			for {
 				select {
 					case <- zmqsignalchanel:
-						//glog.Info("[ok] recv msg from zmq chanel ---> ")
+						glog.Info("[ok] recv msg from zmq chanel ---> ")
 						maker.updateAuxBlock(index)
 					case <- timeoutchanel:
 						//glog.Info("[ok] recv msg from timeout chanel ")
