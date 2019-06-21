@@ -3,10 +3,22 @@
 	"ignore": "test",
 	"package": [
 		{
+			"checksumSHA1": "k9izYoyobR8Upb3Yjsw9htgE/Mk=",
+			"path": "github.com/go-sql-driver/mysql",
+			"revision": "99ff426eb706cffe92ff3d058e168b278cabf7c7",
+			"revisionTime": "2018-07-19T07:19:42Z"
+		},
+		{
 			"checksumSHA1": "HmbftipkadrLlCfzzVQ+iFHbl6g=",
 			"path": "github.com/golang/glog",
 			"revision": "23def4e6c14b4da8ac2ed8007337bc5eb5007998",
 			"revisionTime": "2016-01-25T20:49:56Z"
+		},
+		{
+			"checksumSHA1": "J7xbS62kITEkRRD5qWc9A1A7x7g=",
+			"path": "github.com/pebbe/zmq4",
+			"revision": "7a493a642e7acbd03045d4f5fe9516908a62f86f",
+			"revisionTime": "2019-01-13T09:08:35Z"
 		},
 		{
 			"checksumSHA1": "y33yd1uDZmV3VY4K/5FCGTeRtB8=",
@@ -19,6 +31,24 @@
 			"path": "github.com/willf/bitset",
 			"revision": "1a37ad96e8c1a11b20900a232874843b5174221f",
 			"revisionTime": "2017-09-05T00:26:39Z"
+		},
+		{
+			"checksumSHA1": "1MGpGDQqnUoRpv7VEcQrXOBydXE=",
+			"path": "golang.org/x/crypto/pbkdf2",
+			"revision": "ea8f1a30c4438cc8b13f05538385ad8dc6049b43",
+			"revisionTime": "2019-06-17T22:25:17Z"
+		},
+		{
+			"checksumSHA1": "o8ysWPosGVxkSVMZHfp2tYHBTu8=",
+			"path": "golang.org/x/crypto/scrypt",
+			"revision": "ea8f1a30c4438cc8b13f05538385ad8dc6049b43",
+			"revisionTime": "2019-06-17T22:25:17Z"
+		},
+		{
+			"checksumSHA1": "LiyXfqOzaeQ8vgYZH3t2hUEdVTw=",
+			"path": "google.golang.org/appengine/cloudsql",
+			"revision": "b2f4a3cf3c67576a2ee09e1fe62656a5086ce880",
+			"revisionTime": "2019-06-06T17:30:15Z"
 		}
 	],
 	"rootPath": "github.com/btccom/btcpool-go-modules"
