@@ -162,17 +162,20 @@ func (maker *AuxJobMaker) updateAuxBlock(index int) {
 // updateAuxBlockAllChains 持续更新所有链的辅助区块
 func (maker *AuxJobMaker) updateAuxBlockAllChains() {
 
-
    	go func () {
    		txHashChnel := make(chan string)
-   		defer close(txHashChnel)
-   		notifyPublisher, err := zmq.NewSocket(zmq.PUB)
+		   defer close(txHashChnel)
+		contextpub, errpubctx := zmq.NewContext()
+		if errpubctx != nil {
+			glog.Info("[error] create context failed : ", errpubctx)
+		}
+   		notifyPublisher, err := contextpub.NewSocket(zmq.PUB)
    		defer notifyPublisher.Close()
 		if err != nil {
 			glog.Info(" create notifyPublisher handle failed！", err)
 			return
 		}
-		address := "tcp://*:" + maker.config.BlockHashPublishPort
+		address := "tcp://127.0.0.1:" + maker.config.BlockHashPublishPort
 		glog.Info("notifyPublisher address : ", address)
 		err = notifyPublisher.Bind(address)
 		if err != nil {
@@ -206,7 +209,14 @@ func (maker *AuxJobMaker) updateAuxBlockAllChains() {
 			timeoutchanel := make(chan string)
 			go func(out chan<- string) {
 				chainsupportzmq := maker.chains[index].IsSupportZmq
-				subscriber, _ := zmq.NewSocket(zmq.SUB)
+				contextsub, errsubctx := zmq.NewContext()
+				if errsubctx != nil {
+					glog.Info("[error] ", maker.chains[index].Name, " create context failed : ", errsubctx)
+				}
+				subscriber, fail:= contextsub.NewSocket(zmq.SUB)
+				if fail != nil {
+					glog.Info("[error] ", maker.chains[index].Name, " create socket failed : ", fail)
+				}	
 				connected := true
 				defer subscriber.Close()
 				if chainsupportzmq {
