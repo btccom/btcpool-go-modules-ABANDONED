@@ -251,38 +251,38 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 
 				responseJSON, _ := RPCCall(chain.RPCServer, chain.SubmitAuxBlock.Method, params)
 
-				{
-					response, err := ParseRPCResponse(responseJSON)
-					var submitauxblockinfo SubmitAuxBlockInfo
-					if response.Error != nil {
-						glog.Warning("RPC result : " + string(responseJSON))
-					} else {
-
-						submitauxblockinfo.AuxBlockTableName = handle.auxJobMaker.chains[index].AuxTableName
-						if handle.config.MainChain == "LTC" {
-							submitauxblockinfo.ParentChainBllockHash = HexToString(ArrayReverse(DoubleSHA256(auxPowData.parentBlock)))
-						} else {
-							submitauxblockinfo.ParentChainBllockHash = auxPowData.blockHash.Hex()
-						}
-
-						submitauxblockinfo.AuxChainBlockHash = extAuxPow.Hash.Hex()
-						submitauxblockinfo.AuxPow = auxPowHex
-						submitauxblockinfo.CurrentTime = time.Now().Format("2006-01-02 15:04:05") 
-
-						if ok = handle.dbhandle.InsertAuxBlock(submitauxblockinfo); !ok {
-							glog.Warning("Insert AuxBlock to db failed!")
-						}
-					}
-
-					glog.Info(
-						"[SubmitAuxBlock] <", handle.auxJobMaker.chains[index].Name, "> ",
-						", height: ", extAuxPow.Height,
-						", hash: ", extAuxPow.Hash.Hex(),
-						", parentBlockHash: ", submitauxblockinfo.ParentChainBllockHash,
-						", target: ", extAuxPow.Target.Hex(),
-						", response: ", string(responseJSON),
-						", errmsg: ", err)
+				var submitauxblockinfo SubmitAuxBlockInfo
+				response, err := ParseRPCResponse(responseJSON)
+				if response.Error != nil {
+                    submitauxblockinfo.IsSubmitSuccess = false;
+				} else {
+                    submitauxblockinfo.IsSubmitSuccess = true;
 				}
+				submitauxblockinfo.AuxBlockTableName = handle.auxJobMaker.chains[index].AuxTableName
+				if handle.config.MainChain == "LTC" {
+					submitauxblockinfo.ParentChainBllockHash = HexToString(ArrayReverse(DoubleSHA256(auxPowData.parentBlock)))
+					submitauxblockinfo.AuxChainBlockHash = extAuxPow.Hash.HexReverse()
+				} else {
+					submitauxblockinfo.ParentChainBllockHash = auxPowData.blockHash.Hex()
+					submitauxblockinfo.AuxChainBlockHash = extAuxPow.Hash.Hex()
+				}
+
+				submitauxblockinfo.AuxPow = auxPowHex
+				submitauxblockinfo.RpcResponse = string(responseJSON)
+				submitauxblockinfo.CurrentTime = time.Now().Format("2006-01-02 15:04:05") 
+
+				if ok = handle.dbhandle.InsertAuxBlock(submitauxblockinfo); !ok {
+					glog.Warning("Insert AuxBlock to db failed!")
+				}
+
+				glog.Info(
+					"[SubmitAuxBlock] <", handle.auxJobMaker.chains[index].Name, "> ",
+					", height: ", extAuxPow.Height,
+					", hash: ", submitauxblockinfo.AuxChainBlockHash,
+					", parentBlockHash: ", submitauxblockinfo.ParentChainBllockHash,
+					", target: ", extAuxPow.Target.Hex(),
+					", response: ", string(responseJSON),
+					", errmsg: ", err)
 
 			}(index, *auxPowData, extAuxPow)
 
