@@ -12,12 +12,13 @@ type DBConnection struct {
 }
 
 type SubmitAuxBlockInfo struct {
+    ChainName              string
     AuxBlockTableName      string
    	ParentChainBllockHash  string
     AuxChainBlockHash      string
     AuxPow                 string
     CurrentTime            string
-    RpcResponse            string
+    SubmitResponse         string
     IsSubmitSuccess        bool
 }
 
@@ -48,7 +49,7 @@ func (handle *DBConnection) InitDB(conf DBConnectionInfo) {
 func (handle *DBConnection) InsertAuxBlock(blockinfo SubmitAuxBlockInfo) (bool){
 
     iscolumnexistsql := "SELECT COUNT(*) FROM information_schema.columns WHERE table_name = '"+ blockinfo.AuxBlockTableName 
-    iscolumnexistsql += "' and column_name = 'rpc_responce'"
+    iscolumnexistsql += "' and column_name = 'submit_response'"
 
     var count int
     result := handle.DbHandle.QueryRow(iscolumnexistsql).Scan(&count)
@@ -67,16 +68,16 @@ func (handle *DBConnection) InsertAuxBlock(blockinfo SubmitAuxBlockInfo) (bool){
     var sql string 
     if count != 0 {
         sql = "INSERT INTO " + blockinfo.AuxBlockTableName 
-        sql += " (`bitcoin_block_hash`,`aux_block_hash`, `aux_pow`,`created_at`, `rpc_responce`) "
-        sql += " values(?,?,?,?,?)"
+        sql += " (`bitcoin_block_hash`,`aux_block_hash`, `aux_pow`,`created_at`, `submit_response`, `chain_name`) "
+        sql += " values(?,?,?,?,?,?)"
 
-        res, err := tx.Exec(sql,blockinfo.ParentChainBllockHash,blockinfo.AuxChainBlockHash,blockinfo.AuxPow, blockinfo.CurrentTime, blockinfo.RpcResponse)
+        res, err := tx.Exec(sql,blockinfo.ParentChainBllockHash,blockinfo.AuxChainBlockHash,blockinfo.AuxPow, blockinfo.CurrentTime, blockinfo.SubmitResponse, blockinfo.ChainName)
         if err != nil{
             glog.Info("Exec fail : ", err)
             if blockinfo.IsSubmitSuccess {
-                glog.Info("because auxblock submited successfully, we need update rpc_responce") 
-                updatesql := "UPDATE "+ blockinfo.AuxBlockTableName + " SET rpc_responce=? WHERE aux_block_hash=?"
-                _, fail := tx.Exec(updatesql, blockinfo.RpcResponse, blockinfo.AuxChainBlockHash)
+                glog.Info("because auxblock submited successfully, we need update submit_response") 
+                updatesql := "UPDATE "+ blockinfo.AuxBlockTableName + " SET submit_response=? WHERE aux_block_hash=?"
+                _, fail := tx.Exec(updatesql, blockinfo.SubmitResponse, blockinfo.AuxChainBlockHash)
                 if fail != nil {
                    glog.Info( updatesql ,"Exec fail : ", fail)
                 } else {

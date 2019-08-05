@@ -267,8 +267,10 @@ func (handle *ProxyRPCHandle) submitAuxBlock(params []interface{}, response *RPC
 					submitauxblockinfo.AuxChainBlockHash = extAuxPow.Hash.Hex()
 				}
 
+				submitauxblockinfo.ChainName = handle.auxJobMaker.chains[index].Name
+
 				submitauxblockinfo.AuxPow = auxPowHex
-				submitauxblockinfo.RpcResponse = string(responseJSON)
+				submitauxblockinfo.SubmitResponse = string(responseJSON)
 				submitauxblockinfo.CurrentTime = time.Now().Format("2006-01-02 15:04:05") 
 
 				if ok = handle.dbhandle.InsertAuxBlock(submitauxblockinfo); !ok {
