@@ -1,4 +1,4 @@
-package initUserCoin
+package initusercoin
 
 // #cgo CXXFLAGS: -std=c++11
 // #include "UserListJSON.h"

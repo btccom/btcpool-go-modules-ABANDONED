@@ -12,6 +12,6 @@ func main() {
 	configFilePath := flag.String("config", "./config.json", "Path of config file")
 	flag.Parse()
 
-	go initUserCoin.Main(*configFilePath)
-	switcherAPIServer.Main(*configFilePath)
+	go initusercoin.Main(*configFilePath)
+	switcherapiserver.Main(*configFilePath)
 }
