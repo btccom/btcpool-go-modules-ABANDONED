@@ -1,4 +1,4 @@
-package switcherAPIServer
+package switcherapiserver
 
 import (
 	"encoding/json"

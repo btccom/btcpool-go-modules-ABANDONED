@@ -1,4 +1,4 @@
-package initUserCoin
+package initusercoin
 
 import (
 	"bytes"

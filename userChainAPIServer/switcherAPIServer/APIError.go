@@ -1,4 +1,4 @@
-package switcherAPIServer
+package switcherapiserver
 
 // APIError API错误结构
 type APIError struct {

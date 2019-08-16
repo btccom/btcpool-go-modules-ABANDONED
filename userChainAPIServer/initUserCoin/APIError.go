@@ -1,4 +1,4 @@
-package initUserCoin
+package initusercoin
 
 // APIError API错误结构
 type APIError struct {
