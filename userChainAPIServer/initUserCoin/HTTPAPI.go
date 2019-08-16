@@ -33,9 +33,20 @@ func runAPIServer() {
 
 // getUserIDList 获取子账户列表
 func getUserIDList(w http.ResponseWriter, req *http.Request) {
+	coin := req.FormValue("coin")
 	lastIDStr := req.FormValue("last_id")
 	lastID, _ := strconv.Atoi(lastIDStr)
 
-	json := C.GoString(C.getUserListJson(C.int(lastID)))
+	json := C.GoString(C.getUserListJson(C.int(lastID), C.CString(coin)))
 	w.Write([]byte(json))
+}
+
+// GetUserUpdateTime 获取用户的更新时间（即进入列表的时间）
+func GetUserUpdateTime(puname string, coin string) int64 {
+	return int64(C.getUserUpdateTime(C.CString(puname), C.CString(coin)))
+}
+
+// GetSafetyPeriod 获取用户更新的安全期（在安全期内，子账户可能尚未进入sserver的缓存）
+func GetSafetyPeriod() int64 {
+	return int64(configData.IntervalSeconds * 15 / 10)
 }

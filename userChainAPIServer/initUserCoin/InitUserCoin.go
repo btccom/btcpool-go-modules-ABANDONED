@@ -105,7 +105,7 @@ func InitUserCoin(coin string, url string) {
 					lastPUID = puid
 				}
 
-				C.addUser(C.int(puid), C.CString(puname))
+				C.addUser(C.int(puid), C.CString(puname), C.CString(coin))
 			}
 
 			glog.Info("Finish: ", coin, "; User Num: ", len(userIDMapResponse.Data), "; ", url)
