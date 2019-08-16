@@ -6,7 +6,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 
+	initusercoin "github.com/btccom/btcpool-go-modules/userChainAPIServer/initUserCoin"
 	"github.com/golang/glog"
 	"github.com/samuel/go-zookeeper/zk"
 )
@@ -222,13 +224,33 @@ func changeMiningCoin(puname string, coin string) (oldCoin string, apiErr *APIEr
 			return
 		}*/
 
-		// 写入新值
-		_, err = zookeeperConn.Set(zkPath, []byte(coin), -1)
+		// 查看子账户名的更新时间。如果子账户名刚刚创建，则延后15秒写入
+		userUpdateTime := initusercoin.GetUserUpdateTime(puname, coin)
+		safetyPeriod := initusercoin.GetSafetyPeriod()
+		nowTime := time.Now().Unix()
 
-		if err != nil {
-			glog.Error("zk.Set(", zkPath, ",", coin, ") Failed: ", err)
-			apiErr = APIErrWriteRecordFailed
-			return
+		if userUpdateTime != 0 && nowTime-userUpdateTime > safetyPeriod {
+			// 写入新值
+			_, err = zookeeperConn.Set(zkPath, []byte(coin), -1)
+
+			if err != nil {
+				glog.Error("zk.Set(", zkPath, ",", coin, ") Failed: ", err)
+				apiErr = APIErrWriteRecordFailed
+				return
+			}
+		} else {
+			go func() {
+				sleepTime := safetyPeriod - (nowTime - userUpdateTime)
+				glog.Info("Too new puname ", puname, ", delay ", sleepTime, "s")
+				time.Sleep(time.Duration(sleepTime) * time.Second)
+
+				// 写入新值
+				_, err = zookeeperConn.Set(zkPath, []byte(coin), -1)
+
+				if err != nil {
+					glog.Error("zk.Set(", zkPath, ",", coin, ") Failed: ", err)
+				}
+			}()
 		}
 
 	} else {
