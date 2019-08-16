@@ -1,4 +1,4 @@
-package main
+package initUserCoin
 
 import (
 	"strings"
@@ -33,6 +33,12 @@ func createZookeeperPath(path string) error {
 		_, err = zookeeperConn.Create(currPath, []byte{}, 0, zk.WorldACL(zk.PermAll))
 
 		if err != nil {
+			// 再看看键是否存在（键可能已被其他线程创建）
+			exists, _, _ = zookeeperConn.Exists(currPath)
+			if exists {
+				continue
+			}
+			// 键不存在，返回错误
 			return err
 		}
 

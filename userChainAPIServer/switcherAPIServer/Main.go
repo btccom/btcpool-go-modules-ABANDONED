@@ -1,8 +1,7 @@
-package main
+package switcherAPIServer
 
 import (
 	"encoding/json"
-	"flag"
 	"io/ioutil"
 	"sync"
 	"time"
@@ -52,13 +51,10 @@ var configData *ConfigData
 // 用于等待goroutine结束
 var waitGroup sync.WaitGroup
 
-func main() {
-	// 解析命令行参数
-	configFilePath := flag.String("config", "./config.json", "Path of config file")
-	flag.Parse()
-
+// Main function
+func Main(configFilePath string) {
 	// 读取配置文件
-	configJSON, err := ioutil.ReadFile(*configFilePath)
+	configJSON, err := ioutil.ReadFile(configFilePath)
 
 	if err != nil {
 		glog.Fatal("read config failed: ", err)
