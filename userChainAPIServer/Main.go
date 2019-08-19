@@ -3,8 +3,8 @@ package main
 import (
 	"flag"
 
-	"github.com/btccom/btcpool-go-modules/userChainAPIServer/initUserCoin"
-	"github.com/btccom/btcpool-go-modules/userChainAPIServer/switcherAPIServer"
+	initusercoin "github.com/btccom/btcpool-go-modules/userChainAPIServer/initUserCoin"
+	switcherapiserver "github.com/btccom/btcpool-go-modules/userChainAPIServer/switcherAPIServer"
 )
 
 func main() {
@@ -12,6 +12,6 @@ func main() {
 	configFilePath := flag.String("config", "./config.json", "Path of config file")
 	flag.Parse()
 
-	go initusercoin.Main(*configFilePath)
-	switcherapiserver.Main(*configFilePath)
+	go switcherapiserver.Main(*configFilePath)
+	initusercoin.Main(*configFilePath)
 }
