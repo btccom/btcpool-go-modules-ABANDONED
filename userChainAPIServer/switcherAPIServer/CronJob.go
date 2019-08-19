@@ -31,6 +31,9 @@ func RunCronJob() {
 	var lastRequestDate int64
 
 	for true {
+		// 休眠放在开头，防止一启动就报 Too new user
+		time.Sleep(time.Duration(configData.CronIntervalSeconds) * time.Second)
+
 		// 执行操作
 		// 定义在函数中，这样失败时可以简单的return并进入休眠
 		func() {
@@ -85,8 +88,5 @@ func RunCronJob() {
 				}
 			}
 		}()
-
-		// 休眠
-		time.Sleep(time.Duration(configData.CronIntervalSeconds) * time.Second)
 	}
 }
