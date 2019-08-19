@@ -44,12 +44,13 @@ func runAPIServer() {
 	http.HandleFunc("/switch", basicAuth(switchHandle))
 	http.HandleFunc("/switch-multi-user", basicAuth(switchMultiUserHandle))
 
-	err := http.ListenAndServe(configData.ListenAddr, nil)
+	// The listener will be done in initUserCoin/HTTPAPI.go
+	/*err := http.ListenAndServe(configData.ListenAddr, nil)
 
 	if err != nil {
 		glog.Fatal("HTTP Listen Failed: ", err)
 		return
-	}
+	}*/
 }
 
 // basicAuth 执行Basic认证
@@ -229,7 +230,7 @@ func changeMiningCoin(puname string, coin string) (oldCoin string, apiErr *APIEr
 		safetyPeriod := initusercoin.GetSafetyPeriod()
 		nowTime := time.Now().Unix()
 
-		if userUpdateTime != 0 && nowTime-userUpdateTime > safetyPeriod {
+		if userUpdateTime != 0 && nowTime-userUpdateTime >= safetyPeriod {
 			// 写入新值
 			_, err = zookeeperConn.Set(zkPath, []byte(coin), -1)
 
@@ -239,9 +240,13 @@ func changeMiningCoin(puname string, coin string) (oldCoin string, apiErr *APIEr
 				return
 			}
 		} else {
+			if userUpdateTime <= 0 {
+				userUpdateTime = nowTime
+			}
+			sleepTime := safetyPeriod - (nowTime - userUpdateTime)
+			glog.Info("Too new puname ", puname, ", delay ", sleepTime, "s")
+
 			go func() {
-				sleepTime := safetyPeriod - (nowTime - userUpdateTime)
-				glog.Info("Too new puname ", puname, ", delay ", sleepTime, "s")
 				time.Sleep(time.Duration(sleepTime) * time.Second)
 
 				// 写入新值
