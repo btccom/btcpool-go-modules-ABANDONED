@@ -32,9 +32,9 @@ if ($c['EnableUserAutoReg']) {
     $c['UserAutoRegAPI'] = [
         'IntervalSeconds' => (int)optionalTrim('UserAutoRegAPI_IntervalSeconds', 10),
         'URL' => notNullTrim('UserAutoRegAPI_URL'),
-        'User' => notNull('UserAutoRegAPI_User'),
-        'Password' => notNull('UserAutoRegAPI_Password'),
-        'DefaultCoin' => notNull('UserAutoRegAPI_DefaultCoin'),
+        'User' => notNullTrim('UserAutoRegAPI_User'),
+        'Password' => notNullTrim('UserAutoRegAPI_Password'),
+        'DefaultCoin' => notNullTrim('UserAutoRegAPI_DefaultCoin'),
         'PostData' => json_decode(notNullTrim('UserAutoRegAPI_PostData')),
     ];
 
@@ -49,8 +49,8 @@ $c['ZKUserCaseInsensitiveIndex'] = optionalTrim('ZKUserCaseInsensitiveIndex');
 $c['EnableAPIServer'] = isTrue('EnableAPIServer');
 if ($c['EnableAPIServer']) {
     $c['ListenAddr'] = notNullTrim("ListenAddr");
-    $c['APIUser'] = optional('APIUser');
-    $c['APIPassword'] = optional('APIPassword');
+    $c['APIUser'] = optionalTrim('APIUser');
+    $c['APIPassword'] = optionalTrim('APIPassword');
 }
 
 $c['EnableCronJob'] = isTrue('EnableCronJob');
