@@ -1,12 +1,3 @@
-# [Stratum Switcher](stratumSwitcher/)
-
-可切换币种的 Stratum 代理，用于配合 BTCPool 工作。
-
-**已废弃，btcpool项目中的sserver现在直接具有币种切换功能，不再需要Stratum Switcher。**
-
-* [BTCPool for Bitcoin Cash](https://github.com/btccom/bccpool)
-* [BTCPool for Bitcoin](https://github.com/btccom/btcpool)
-
 # [User Chain API Server](userChainAPIServer/)
 
 由两个模块合并而来：
@@ -22,3 +13,12 @@
 # [Init NiceHash](initNiceHash/)
 
 初始化 ZooKeeper 中的 NiceHash 配置，通过调用 NiceHash API 来获取各个算法要求的最小难度，写入 ZooKeeper 以备 sserver 来使用。
+
+# [Stratum Switcher](stratumSwitcher/)
+
+可切换币种的 Stratum 代理，用于配合 BTCPool 工作。
+
+**已废弃，btcpool项目中的sserver现在直接具有币种切换功能，不再需要Stratum Switcher。**
+
+* [BTCPool for Bitcoin Cash](https://github.com/btccom/bccpool)
+* [BTCPool for Bitcoin](https://github.com/btccom/btcpool)
