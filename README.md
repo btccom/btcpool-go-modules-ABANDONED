@@ -1,16 +1,19 @@
 # [Stratum Switcher](stratumSwitcher/)
 
 可切换币种的 Stratum 代理，用于配合 BTCPool 工作。
+
+**已废弃，btcpool项目中的sserver现在直接具有币种切换功能，不再需要Stratum Switcher。**
+
 * [BTCPool for Bitcoin Cash](https://github.com/btccom/bccpool)
 * [BTCPool for Bitcoin](https://github.com/btccom/btcpool)
 
-# [Switcher API Server](switcherAPIServer/)
+# [User Chain API Server](userChainAPIServer/)
 
-提供触发 Stratum 切换的API
-
-# [Init User Coin](initUserCoin/)
-
-初始化zookeeper里的用户币种记录
+由两个模块合并而来：
+* [Switcher API Server](userChainAPIServer/switcherAPIServer/)
+  提供触发 Stratum 切换的API
+* [Init User Coin](userChainAPIServer/initUserCoin/)
+  初始化zookeeper里的用户币种记录
 
 # [Merged Mining Proxy](mergedMiningProxy/)
 
