@@ -1,0 +1,17 @@
+{
+    "Kafka": {
+        "Brokers": [
+            "127.0.0.1:9092",
+            "127.0.0.2:9092",
+            "127.0.0.3:9092"
+        ],
+        "ControllerTopic": "BtcManController",
+        "ProcessorTopic": "BtcManProcessor"
+    },
+    "ChainDispatchAPI": "http://127.0.0.1:8000/chain-dispatch.php",
+    "SwitchIntervalSeconds": 60,
+    "ChainNameMap": {
+        "BTC": "btc",
+        "BCH": "bcc"
+    }
+}
