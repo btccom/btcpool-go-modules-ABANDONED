@@ -14,7 +14,9 @@ if (empty($c['AvailableCoins']) || in_array('', $c['AvailableCoins'])) {
 
 $c['UserListAPI'] = [];
 foreach ($c['AvailableCoins'] as $coin) {
-    $c['UserListAPI'][$coin] = notNullTrim("UserListAPI_$coin");
+    if ($coin != "auto" || !empty($_ENV["UserListAPI_$coin"])) {
+        $c['UserListAPI'][$coin] = notNullTrim("UserListAPI_$coin");
+    }
 }
 
 $c['IntervalSeconds'] = (int)optionalTrim('IntervalSeconds', 10);
