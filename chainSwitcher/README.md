@@ -45,3 +45,37 @@ go build
 cp config.default.json config.json
 ./chainSwitcher --config config.json --logtostderr
 ```
+
+# Docker
+
+## 构建
+```
+cd btcpool-go-modules/chainSwitcher
+docker build -t btcpool-chain-switcher -f Dockerfile ..
+```
+
+## 运行
+```
+docker run -it --rm --network=host \
+    -e KafkaBrokers=127.0.0.1:9092,127.0.0.2:9092,127.0.0.3:9092 \
+    -e KafkaControllerTopic=BtcManController \
+    -e KafkaProcessorTopic=BtcManProcessor \
+    -e Algorithm=SHA256 \
+    -e ChainDispatchAPI=http://127.0.0.1:8000/chain-dispatch.php \
+    -e ChainNameMap='{"BTC":"btc","BCH":"bcc"}' \
+    -e MySQLConnStr="root:root@/bpool_local_db" \
+    btcpool-chain-switcher
+
+# 全部参数：
+docker run -it --rm --network=host \
+    -e KafkaBrokers=127.0.0.1:9092,127.0.0.2:9092,127.0.0.3:9092 \
+    -e KafkaControllerTopic=BtcManController \
+    -e KafkaProcessorTopic=BtcManProcessor \
+    -e Algorithm=SHA256 \
+    -e ChainDispatchAPI=http://127.0.0.1:8000/chain-dispatch.php \
+    -e SwitchIntervalSeconds=60 \
+    -e ChainNameMap='{"BTC":"btc","BCH":"bcc"}' \
+    -e MySQLConnStr="root:root@tcp(localhost:3306)/bpool_local_db" \
+    -e MySQLTable="chain_switcher_record" \
+    btcpool-chain-switcher
+```
