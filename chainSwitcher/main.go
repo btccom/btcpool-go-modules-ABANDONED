@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"flag"
 	"io/ioutil"
@@ -12,6 +13,7 @@ import (
 	"github.com/segmentio/kafka-go"
 	"github.com/segmentio/kafka-go/snappy"
 
+	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/segmentio/kafka-go/snappy"
 )
 
@@ -22,9 +24,14 @@ type ChainSwitcherConfig struct {
 		ControllerTopic string
 		ProcessorTopic  string
 	}
+	Algorithm             string
 	ChainDispatchAPI      string
 	SwitchIntervalSeconds time.Duration
 	ChainNameMap          map[string]string
+	MySQL                 struct {
+		ConnStr string
+		Table   string
+	}
 }
 
 // ChainRecord HTTP API中的币种记录
@@ -70,6 +77,9 @@ var controllerProducer *kafka.Writer
 var processorConsumer *kafka.Reader
 var commandID uint64
 
+var insertStmt *sql.Stmt
+var mysqlConn *sql.DB
+
 func main() {
 	// 解析命令行参数
 	configFilePath := flag.String("config", "./config.json", "Path of config file")
@@ -106,11 +116,44 @@ func main() {
 		CompressionCodec: snappy.NewCompressionCodec(),
 	})
 
+	initMySQL()
 	go readResponse()
-	run()
+	updateChain()
 }
 
-func run() {
+func initMySQL() {
+	var err error
+
+	glog.Info("connecting to MySQL...")
+	mysqlConn, err = sql.Open("mysql", configData.MySQL.ConnStr)
+	if err != nil {
+		glog.Fatal("mysql error: ", err)
+	}
+
+	err = mysqlConn.Ping()
+	if err != nil {
+		glog.Fatal("mysql error: ", err.Error())
+	}
+
+	mysqlConn.Exec("CREATE TABLE IF NOT EXISTS `" + configData.MySQL.Table + "`(" + `
+		id bigint(20) NOT NULL AUTO_INCREMENT,
+		algorithm varchar(255) NOT NULL,
+		prev_chain varchar(255) NOT NULL,
+		curr_chain varchar(255) NOT NULL,
+		api_result text NOT NULL,
+		created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (id)
+		)
+	`)
+
+	insertStmt, err = mysqlConn.Prepare("INSERT INTO `" + configData.MySQL.Table +
+		"`(algorithm,prev_chain,curr_chain,api_result) VALUES(?,?,?,?)")
+	if err != nil {
+		glog.Fatal("mysql error: ", err.Error())
+	}
+}
+
+func updateChain() {
 	for {
 		updateCurrentChain()
 
@@ -137,6 +180,8 @@ func run() {
 }
 
 func updateCurrentChain() {
+	oldChainName := currentChainName
+
 	glog.Info("HTTP GET ", configData.ChainDispatchAPI)
 	response, err := http.Get(configData.ChainDispatchAPI)
 	if err != nil {
@@ -172,7 +217,16 @@ func updateCurrentChain() {
 	if bestChain != "" {
 		currentChainName = bestChain
 	}
-	glog.Info("Current Best Chain: ", bestChain)
+
+	if oldChainName != currentChainName {
+		glog.Info("Best Chain Changed: ", oldChainName, " -> ", bestChain)
+		_, err := insertStmt.Exec(configData.Algorithm, oldChainName, currentChainName, body)
+		if err != nil {
+			glog.Fatal("mysql error: ", err.Error())
+		}
+	} else {
+		glog.Info("Best Chain not Changed: ", bestChain)
+	}
 }
 
 func readResponse() {

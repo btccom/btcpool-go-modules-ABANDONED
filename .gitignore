@@ -22,3 +22,6 @@ testproject
 
 # build dir
 build*/
+
+# binary
+/chainSwitcher/chainSwitcher

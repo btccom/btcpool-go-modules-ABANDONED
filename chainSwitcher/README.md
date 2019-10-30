@@ -35,10 +35,13 @@
 ```
 go get github.com/segmentio/kafka-go
 go get github.com/golang/snappy
+go get github.com/go-sql-driver/mysql
+go get github.com/golang/glog
 go build
 ```
 
 ## 运行
 ```
-./chainSwitcher --config config.default.json --logtostderr
+cp config.default.json config.json
+./chainSwitcher --config config.json --logtostderr
 ```
