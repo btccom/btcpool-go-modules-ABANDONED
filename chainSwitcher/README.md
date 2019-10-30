@@ -64,7 +64,7 @@ docker run -it --rm --network=host \
     -e ChainDispatchAPI=http://127.0.0.1:8000/chain-dispatch.php \
     -e ChainNameMap='{"BTC":"btc","BCH":"bcc"}' \
     -e MySQLConnStr="root:root@/bpool_local_db" \
-    btcpool-chain-switcher
+    btcpool-chain-switcher -logtostderr -v 2
 
 # 全部参数：
 docker run -it --rm --network=host \
@@ -77,5 +77,16 @@ docker run -it --rm --network=host \
     -e ChainNameMap='{"BTC":"btc","BCH":"bcc"}' \
     -e MySQLConnStr="root:root@tcp(localhost:3306)/bpool_local_db" \
     -e MySQLTable="chain_switcher_record" \
-    btcpool-chain-switcher
+    btcpool-chain-switcher -logtostderr -v 2
+
+# 守护进程
+docker run -it --name chain-switcher --network=host --restart always -d \
+    -e KafkaBrokers=127.0.0.1:9092,127.0.0.2:9092,127.0.0.3:9092 \
+    -e KafkaControllerTopic=BtcManController \
+    -e KafkaProcessorTopic=BtcManProcessor \
+    -e Algorithm=SHA256 \
+    -e ChainDispatchAPI=http://127.0.0.1:8000/chain-dispatch.php \
+    -e ChainNameMap='{"BTC":"btc","BCH":"bcc"}' \
+    -e MySQLConnStr="root:root@/bpool_local_db" \
+    btcpool-chain-switcher -logtostderr -v 2
 ```
