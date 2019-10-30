@@ -95,7 +95,7 @@ func main() {
 		Brokers:   configData.Kafka.Brokers,
 		Topic:     configData.Kafka.ProcessorTopic,
 		Partition: 0,
-		MinBytes:  10e3, // 10KB
+		MinBytes:  128,  // 128B
 		MaxBytes:  10e6, // 10MB
 	})
 
@@ -124,10 +124,11 @@ func run() {
 				currentChainName}
 			bytes, _ := json.Marshal(command)
 			controllerProducer.WriteMessages(context.Background(), kafka.Message{Value: []byte(bytes)})
-			glog.Info("Send to Kafka, type: ", command.Type,
+			glog.Info("Send to Kafka, id: ", command.ID,
+				", created_at: ", command.CreatedAt,
+				", type: ", command.Type,
 				", action: ", command.Action,
-				", chain_name: ", command.ChainName,
-				", created_at: ", command.CreatedAt)
+				", chain_name: ", command.ChainName)
 		}
 
 		// 休眠
@@ -190,13 +191,14 @@ func readResponse() {
 		}
 
 		if response.Type == "sserver_response" && response.Action == "auto_switch_chain" {
-			glog.Info("Server Response, server_id: ", response.ServerID,
+			glog.Info("Server Response, id: ", response.ID,
+				", created_at: ", response.CreatedAt,
+				", server_id: ", response.ServerID,
 				", result: ", response.Result,
 				", old_chain_name: ", response.OldChainName,
 				", new_chain_name: ", response.NewChainName,
 				", switched_users: ", response.SwitchedUsers,
-				", switched_connections: ", response.SwitchedConnections,
-				", created_at: ", response.CreatedAt)
+				", switched_connections: ", response.SwitchedConnections)
 		}
 	}
 }
