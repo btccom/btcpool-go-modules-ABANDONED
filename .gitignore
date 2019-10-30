@@ -25,3 +25,9 @@ build*/
 
 # binary
 /chainSwitcher/chainSwitcher
+/userChainAPIServer/userChainAPIServer
+
+# archive
+*.img
+*.gz
+
