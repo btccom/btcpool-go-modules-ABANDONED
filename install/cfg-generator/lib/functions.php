@@ -93,3 +93,9 @@ function commaSplitTrim($envName) {
     }
     return $result;
 }
+
+function outputConfigJSON($json, $fileName = 'config.json') {
+    errPuts("================ $fileName ================\n");
+    errPuts(toJSON($json)."\n");
+    errPuts("=============================================\n");
+}

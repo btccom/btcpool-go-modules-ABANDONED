@@ -37,3 +37,6 @@ $c['MySQL']['ConnStr'] = notNullTrim("MySQLConnStr");
 $c['MySQL']['Table'] = optionalTrim('MySQLTable', 'chain_switcher_record');
 
 echo toJSON($c);
+
+$c['MySQL']['ConnStr'] = preg_replace('/^.*@(.*?)$/', '******:******@$1', $c['MySQL']['ConnStr']);
+outputConfigJSON($c);

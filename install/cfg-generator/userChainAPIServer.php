@@ -62,3 +62,7 @@ if ($c['EnableCronJob']) {
 }
 
 echo toJSON($c);
+
+$c['APIUser'] = '******';
+$c['APIPassword'] = '******';
+outputConfigJSON($c);
