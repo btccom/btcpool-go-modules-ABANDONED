@@ -62,6 +62,7 @@ docker run -it --rm --network=host \
     -e KafkaProcessorTopic=BtcManProcessor \
     -e Algorithm=SHA256 \
     -e ChainDispatchAPI=http://127.0.0.1:8000/chain-dispatch.php \
+    -e FailSafeChain=btc \
     -e ChainNameMap='{"BTC":"btc","BCH":"bcc"}' \
     -e MySQLConnStr="root:root@/bpool_local_db" \
     btcpool-chain-switcher -logtostderr -v 2
@@ -74,6 +75,8 @@ docker run -it --rm --network=host \
     -e Algorithm=SHA256 \
     -e ChainDispatchAPI=http://127.0.0.1:8000/chain-dispatch.php \
     -e SwitchIntervalSeconds=60 \
+    -e FailSafeChain=btc \
+    -e FailSafeSeconds=600 \
     -e ChainNameMap='{"BTC":"btc","BCH":"bcc"}' \
     -e MySQLConnStr="root:root@tcp(localhost:3306)/bpool_local_db" \
     -e MySQLTable="chain_switcher_record" \
@@ -86,6 +89,7 @@ docker run -it --name chain-switcher --network=host --restart always -d \
     -e KafkaProcessorTopic=BtcManProcessor \
     -e Algorithm=SHA256 \
     -e ChainDispatchAPI=http://127.0.0.1:8000/chain-dispatch.php \
+    -e FailSafeChain=btc \
     -e ChainNameMap='{"BTC":"btc","BCH":"bcc"}' \
     -e MySQLConnStr="root:root@/bpool_local_db" \
     btcpool-chain-switcher -logtostderr -v 2

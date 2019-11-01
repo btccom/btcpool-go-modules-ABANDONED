@@ -11,6 +11,8 @@
     "Algorithm": "SHA256",
     "ChainDispatchAPI": "http://127.0.0.1:8000/chain-dispatch.php",
     "SwitchIntervalSeconds": 60,
+    "FailSafeChain": "btc",
+    "FailSafeSeconds": 600,
     "ChainNameMap": {
         "BTC": "btc",
         "BCH": "bcc"

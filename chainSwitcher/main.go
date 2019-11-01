@@ -27,6 +27,8 @@ type ChainSwitcherConfig struct {
 	Algorithm             string
 	ChainDispatchAPI      string
 	SwitchIntervalSeconds time.Duration
+	FailSafeChain         string
+	FailSafeSeconds       time.Duration
 	ChainNameMap          map[string]string
 	MySQL                 struct {
 		ConnStr string
@@ -68,9 +70,19 @@ type KafkaCommand struct {
 	ChainName string      `json:"chain_name"`
 }
 
+// ActionFailSafeSwitch API失效切换到默认币种时记录的api_result
+type ActionFailSafeSwitch struct {
+	Action         string `json:"action"`
+	LastUpdateTime int64  `json:"last_update_time"`
+	CurrentTime    int64  `json:"current_time"`
+	OldChainName   string `json:"old_chain_name"`
+	NewChainName   string `json:"new_chain_name"`
+}
+
 // 配置数据
 var configData *ChainSwitcherConfig
 
+var updateTime int64
 var currentChainName string
 
 var controllerProducer *kafka.Writer
@@ -117,6 +129,7 @@ func main() {
 	})
 
 	initMySQL()
+	go failSafe()
 	go readResponse()
 	updateChain()
 }
@@ -153,28 +166,62 @@ func initMySQL() {
 	}
 }
 
+func failSafe() {
+	for {
+		time.Sleep(configData.FailSafeSeconds * time.Second)
+
+		now := time.Now().Unix()
+		if updateTime+int64(configData.FailSafeSeconds) < now {
+			oldChainName := currentChainName
+			currentChainName = configData.FailSafeChain
+
+			glog.Info("Fail Safe Switch: ", oldChainName, " -> ", currentChainName,
+				", lastUpdateTime: ", time.Unix(updateTime, 0).UTC().Format("2006-01-02 15:04:05"),
+				", currentTime: ", time.Unix(now, 0).UTC().Format("2006-01-02 15:04:05"))
+			sendCurrentChainToKafka()
+
+			apiResult := ActionFailSafeSwitch{
+				"fail_safe_switch",
+				updateTime,
+				now,
+				oldChainName,
+				currentChainName}
+			bytes, _ := json.Marshal(apiResult)
+			_, err := insertStmt.Exec(configData.Algorithm, oldChainName, currentChainName, bytes)
+			if err != nil {
+				glog.Fatal("mysql error: ", err.Error())
+			}
+
+			updateTime = now
+		}
+	}
+}
+
+func sendCurrentChainToKafka() {
+	commandID++
+	command := KafkaCommand{
+		commandID,
+		"sserver_cmd",
+		"auto_switch_chain",
+		time.Now().UTC().Format("2006-01-02 15:04:05"),
+		currentChainName}
+	bytes, _ := json.Marshal(command)
+	controllerProducer.WriteMessages(context.Background(), kafka.Message{Value: []byte(bytes)})
+
+	glog.Info("Send to Kafka, id: ", command.ID,
+		", created_at: ", command.CreatedAt,
+		", type: ", command.Type,
+		", action: ", command.Action,
+		", chain_name: ", command.ChainName)
+}
+
 func updateChain() {
 	for {
 		updateCurrentChain()
-
 		if currentChainName != "" {
-			commandID++
-			command := KafkaCommand{
-				commandID,
-				"sserver_cmd",
-				"auto_switch_chain",
-				time.Now().UTC().Format("2006-01-02 15:04:05"),
-				currentChainName}
-			bytes, _ := json.Marshal(command)
-			controllerProducer.WriteMessages(context.Background(), kafka.Message{Value: []byte(bytes)})
-			glog.Info("Send to Kafka, id: ", command.ID,
-				", created_at: ", command.CreatedAt,
-				", type: ", command.Type,
-				", action: ", command.Action,
-				", chain_name: ", command.ChainName)
+			sendCurrentChainToKafka()
 		}
 
-		// 休眠
 		time.Sleep(configData.SwitchIntervalSeconds * time.Second)
 	}
 }
@@ -216,6 +263,7 @@ func updateCurrentChain() {
 
 	if bestChain != "" {
 		currentChainName = bestChain
+		updateTime = time.Now().Unix()
 	}
 
 	if oldChainName != currentChainName {
@@ -253,6 +301,7 @@ func readResponse() {
 				", new_chain_name: ", response.NewChainName,
 				", switched_users: ", response.SwitchedUsers,
 				", switched_connections: ", response.SwitchedConnections)
+			continue
 		}
 	}
 }
