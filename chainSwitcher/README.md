@@ -8,28 +8,18 @@
 
 ```
 {
-    "coins": {
-        "BCH": {
-            "dispatch_hashrate": 258111.92670242672,
-            "dispatchable_hashrate": 10000000
-        },
-        "BSV": {
-            "dispatch_hashrate": 132395.62447732966,
-            "dispatchable_hashrate": 10000000
-        },
-        "BTC": {
-            "dispatch_hashrate": 9609492.448820245,
-            "dispatchable_hashrate": 10000000
+    "algorithms": {
+        "SHA256": {
+            "coins": [
+                "BCH",
+                "BTC"
+            ]
         }
     }
 }
 ```
 
-其中：
-* `dispatchable_hashrate`: 参与分配的总算力
-* `dispatch_hashrate`: 每个币种上推荐分配的算力
-
-在设计接口时，`dispatchable_hashrate` 可设计为通过URL查询字符串接收，或者直接设置为固定值。目前BTCPool不支持按比例分配算力，所以切换器只会选取`dispatch_hashrate`最高的币种做为切换目标。
+其中：`coins` 为推荐挖掘的币种，按收益从高到低排序。
 
 ## 构建
 ```
