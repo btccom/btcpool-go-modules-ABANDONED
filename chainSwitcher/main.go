@@ -58,6 +58,10 @@ type KafkaMessage struct {
 	ServerID            int         `json:"server_id"`
 	SwitchedConnections int         `json:"switched_connections"`
 	SwitchedUsers       int         `json:"switched_users"`
+	Host                struct {
+		Hostname string              `json:"hostname"`
+		IP       map[string][]string `json:"ip"`
+	} `json:"host"`
 }
 
 // KafkaCommand Kafka中发送的消息结构
@@ -303,6 +307,16 @@ func readResponse() {
 				", new_chain_name: ", response.NewChainName,
 				", switched_users: ", response.SwitchedUsers,
 				", switched_connections: ", response.SwitchedConnections)
+			continue
+		}
+
+		if response.Type == "sserver_notify" && response.Action == "online" {
+			glog.Info("Server Online, ",
+				", created_at: ", response.CreatedAt,
+				", server_id: ", response.ServerID,
+				", hostname: ", response.Host.Hostname,
+				", ip: ", response.Host.IP)
+			sendCurrentChainToKafka()
 			continue
 		}
 	}
