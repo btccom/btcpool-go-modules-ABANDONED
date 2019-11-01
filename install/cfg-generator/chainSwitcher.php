@@ -20,7 +20,10 @@ $c['Kafka']['ProcessorTopic'] = notNullTrim("KafkaProcessorTopic");
 
 $c['Algorithm'] = notNullTrim("Algorithm");
 $c['ChainDispatchAPI'] = notNullTrim("ChainDispatchAPI");
-$c['SwitchIntervalSeconds'] = (int)optionalTrim('SwitchIntervalSeconds', 10);
+$c['SwitchIntervalSeconds'] = (int)optionalTrim('SwitchIntervalSeconds', 60);
+
+$c['FailSafeChain'] = notNullTrim("FailSafeChain");
+$c['FailSafeSeconds'] = (int)optionalTrim('FailSafeSeconds', $c['SwitchIntervalSeconds'] * 10);
 
 $c['ChainNameMap'] = json_decode(notNullTrim('ChainNameMap'), true);
 if ($c['ChainNameMap'] === null) {
