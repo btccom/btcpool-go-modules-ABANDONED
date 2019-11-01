@@ -38,13 +38,12 @@ type ChainSwitcherConfig struct {
 
 // ChainRecord HTTP API中的币种记录
 type ChainRecord struct {
-	DispatchHashrate     float64 `json:"dispatch_hashrate"`
-	DispatchableHashrate float64 `json:"dispatchable_hashrate"`
+	Coins []string `json:"coins"`
 }
 
 // ChainDispatchRecord HTTP API响应
 type ChainDispatchRecord struct {
-	Coins map[string]ChainRecord
+	Algorithms map[string]ChainRecord `json:"algorithms"`
 }
 
 // KafkaMessage Kafka中接收的消息结构
@@ -249,15 +248,18 @@ func updateCurrentChain() {
 		return
 	}
 
-	var largeHashrate float64
+	algorithms, ok := chainDispatchRecord.Algorithms[configData.Algorithm]
+	if !ok {
+		glog.Error("Cannot find algorithm ", configData.Algorithm, ", json: ", string(body))
+		return
+	}
+
 	var bestChain string
-	for chain, record := range chainDispatchRecord.Coins {
-		if record.DispatchHashrate > largeHashrate {
-			chainName, ok := configData.ChainNameMap[chain]
-			if ok {
-				largeHashrate = record.DispatchHashrate
-				bestChain = chainName
-			}
+	for _, coin := range algorithms.Coins {
+		chainName, ok := configData.ChainNameMap[coin]
+		if ok {
+			bestChain = chainName
+			break
 		}
 	}
 
