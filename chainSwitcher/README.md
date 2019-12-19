@@ -84,3 +84,17 @@ docker run -it --name chain-switcher --network=host --restart always -d \
     -e MySQLConnStr="root:root@/bpool_local_db" \
     btcpool-chain-switcher -logtostderr -v 2
 ```
+
+## 数据库变更
+程序会自动尝试创建如下数据表：
+```
+CREATE TABLE IF NOT EXISTS `<configData.MySQL.Table的值>`(
+    id bigint(20) NOT NULL AUTO_INCREMENT,
+    algorithm varchar(255) NOT NULL,
+    prev_chain varchar(255) NOT NULL,
+    curr_chain varchar(255) NOT NULL,
+    api_result text NOT NULL,
+    created_at timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (id)
+)
+```
