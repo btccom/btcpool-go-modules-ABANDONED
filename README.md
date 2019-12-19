@@ -14,6 +14,9 @@
 
 初始化 ZooKeeper 中的 NiceHash 配置，通过调用 NiceHash API 来获取各个算法要求的最小难度，写入 ZooKeeper 以备 sserver 来使用。
 
+# [Chain Switcher](chainSwitcher/)
+向sserver发送币种自动切换命令。
+
 # [Stratum Switcher](stratumSwitcher/)
 
 可切换币种的 Stratum 代理，用于配合 BTCPool 工作。
