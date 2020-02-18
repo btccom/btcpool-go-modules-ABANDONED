@@ -27,7 +27,7 @@ docker build -t btcpool-user-chain-api-server -f Dockerfile ..
 ## 运行
 ```
 docker run -it --rm --network=host \
-  -e AvailableCoins='ubtc,btc,bcc' \
+  -e AvailableCoins='ubtc,btc,bcc,auto' \
   -e UserListAPI_ubtc='http://localhost:8000/userlist-ubtc.php' \
   -e UserListAPI_btc='http://localhost:8000/userlist-btc.php' \
   -e UserListAPI_bcc='http://localhost:8000/userlist-bch.php' \
@@ -43,7 +43,7 @@ docker run -it --rm --network=host \
 
 # 守护进程
 docker run -it --name user-chain-api-server --network=host --restart always -d \
-  -e AvailableCoins='ubtc,btc,bcc' \
+  -e AvailableCoins='ubtc,btc,bcc,auto' \
   -e UserListAPI_ubtc='http://localhost:8000/userlist-ubtc.php' \
   -e UserListAPI_btc='http://localhost:8000/userlist-btc.php' \
   -e UserListAPI_bcc='http://localhost:8000/userlist-bch.php' \
@@ -57,3 +57,5 @@ docker run -it --name user-chain-api-server --network=host --restart always -d \
   -e UserCoinMapURL='http://localhost:8000/usercoin.php' \
   btcpool-user-chain-api-server:latest -logtostderr -v 2
 ```
+
+币种`auto`可选，用于机枪切换，不需要实际配置到`sserver`的`chains`里。`sserver`只需要打开机枪切换功能（`auto_switch_chain`）即可识别币种`auto`。
