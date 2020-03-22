@@ -40,6 +40,10 @@ type ConfigData struct {
 	UserCoinMapURL string
 	// 挖矿服务器对子账户名大小写不敏感，此时将总是写入小写的子账户名
 	StratumServerCaseInsensitive bool
+	//子池更新用的zookeeper根目录（注意，不应包括币种和子池名称），以斜杠结尾
+	ZKSubPoolUpdateBaseDir string
+	// 子池更新时jobmaker的应答超时时间，如果在该时间内jobmaker没有应答，则API返回错误
+	ZKSubPoolUpdateAckTimeout int
 }
 
 // zookeeperConn Zookeeper连接对象
@@ -72,6 +76,9 @@ func Main(configFilePath string) {
 	// 若zookeeper路径不以“/”结尾，则添加
 	if configData.ZKSwitcherWatchDir[len(configData.ZKSwitcherWatchDir)-1] != '/' {
 		configData.ZKSwitcherWatchDir += "/"
+	}
+	if len(configData.ZKSubPoolUpdateBaseDir) > 0 && configData.ZKSubPoolUpdateBaseDir[len(configData.ZKSubPoolUpdateBaseDir)-1] != '/' {
+		configData.ZKSubPoolUpdateBaseDir += "/"
 	}
 
 	// 建立到Zookeeper集群的连接

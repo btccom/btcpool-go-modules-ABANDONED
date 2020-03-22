@@ -31,6 +31,43 @@ type APIResponse struct {
 	Success bool   `json:"success"`
 }
 
+// SubPoolUpdate 子池更新信息
+type SubPoolUpdate struct {
+	Coin         string `json:"coin"`
+	SubPoolName  string `json:"subpool_name"`
+	CoinbaseInfo string `json:"coinbase_info"`
+	PayoutAddr   string `json:"payout_addr"`
+}
+
+// SubPoolCoinbase 子池Coinbase信息
+type SubPoolCoinbase struct {
+	Success     bool   `json:"success"`
+	ErrNo       int    `json:"err_no"`
+	ErrMsg      string `json:"err_msg"`
+	SubPoolName string `json:"subpool_name"`
+	Old         struct {
+		CoinbaseInfo string `json:"coinbase_info"`
+		PayoutAddr   string `json:"payout_addr"`
+	} `json:"old"`
+}
+
+// SubPoolUpdateAck 子池更新响应
+type SubPoolUpdateAck struct {
+	SubPoolCoinbase
+	New struct {
+		CoinbaseInfo string `json:"coinbase_info"`
+		PayoutAddr   string `json:"payout_addr"`
+	} `json:"new"`
+}
+
+// SubPoolUpdateAckInner 子池更新响应(非公开)
+type SubPoolUpdateAckInner struct {
+	SubPoolUpdateAck
+	Host struct {
+		HostName string `json:"hostname"`
+	} `json:"host"`
+}
+
 // HTTPRequestHandle HTTP请求处理函数
 type HTTPRequestHandle func(http.ResponseWriter, *http.Request)
 
@@ -42,7 +79,15 @@ func runAPIServer() {
 	glog.Info("Listen HTTP ", configData.ListenAddr)
 
 	http.HandleFunc("/switch", basicAuth(switchHandle))
+
+	http.HandleFunc("/switch/multi-user", basicAuth(switchMultiUserHandle))
 	http.HandleFunc("/switch-multi-user", basicAuth(switchMultiUserHandle))
+
+	http.HandleFunc("/subpool/get-coinbase", basicAuth(getCoinbaseHandle))
+	http.HandleFunc("/subpool-get-coinbase", basicAuth(getCoinbaseHandle))
+
+	http.HandleFunc("/subpool/update-coinbase", basicAuth(updateCoinbaseHandle))
+	http.HandleFunc("/subpool-update-coinbase", basicAuth(updateCoinbaseHandle))
 
 	// The listener will be done in initUserCoin/HTTPAPI.go
 	/*err := http.ListenAndServe(configData.ListenAddr, nil)
@@ -75,6 +120,203 @@ func basicAuth(f HTTPRequestHandle) HTTPRequestHandle {
 		w.WriteHeader(http.StatusUnauthorized)
 		// 401 页面
 		w.Write([]byte(`<h1>401 - Unauthorized</h1>`))
+	}
+}
+
+// getCoinbaseHandle 获取子池coinbase信息
+func getCoinbaseHandle(w http.ResponseWriter, req *http.Request) {
+	if len(configData.ZKSubPoolUpdateBaseDir) == 0 {
+		writeError(w, 403, "API disabled")
+		return
+	}
+
+	requestJSON, err := ioutil.ReadAll(req.Body)
+
+	if err != nil {
+		glog.Warning(err, ": ", req.RequestURI)
+		writeError(w, 500, err.Error())
+		return
+	}
+
+	var reqData SubPoolUpdate
+	err = json.Unmarshal(requestJSON, &reqData)
+
+	if err != nil {
+		glog.Info(err, ": ", req.RequestURI)
+		writeError(w, 400, "wrong JSON, "+err.Error())
+		return
+	}
+
+	if len(reqData.Coin) < 1 {
+		writeError(w, 400, "coin cannot be empty")
+		return
+	}
+	if len(reqData.SubPoolName) < 1 {
+		writeError(w, 400, "subpool_name cannot be empty")
+		return
+	}
+
+	glog.Info("[subpool-get] Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName)
+
+	reqNode := configData.ZKSubPoolUpdateBaseDir + reqData.Coin + "/" + reqData.SubPoolName
+	ackNode := reqNode + "/ack"
+
+	exists, _, err := zookeeperConn.Exists(reqNode)
+	if err != nil || !exists {
+		glog.Warning("[subpool-get] zk path '", reqNode, "' doesn't exists",
+			" Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName)
+		writeError(w, 404, "subpool '"+reqData.SubPoolName+"' does not exist")
+		return
+	}
+
+	exists, _, ack, err := zookeeperConn.ExistsW(ackNode)
+	if err != nil || !exists {
+		glog.Warning("[subpool-get] zk path '", ackNode, "' doesn't exists",
+			" Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName)
+		writeError(w, 503, "jobmaker cannot ACK the request")
+		return
+	}
+
+	zookeeperConn.Set(reqNode, []byte{}, -1)
+
+	select {
+	case <-ack:
+		ackJSON, _, err := zookeeperConn.Get(ackNode)
+		if err != nil {
+			glog.Warning("[subpool-get] get ACK failed, ", err.Error(),
+				" Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName)
+			writeError(w, 500, "cannot get ACK from zookeeper")
+			return
+		}
+
+		var ackData SubPoolUpdateAckInner
+		err = json.Unmarshal(ackJSON, &ackData)
+		if err != nil {
+			glog.Warning("[subpool-get] parse ACK failed, ", err.Error(),
+				" Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName)
+			writeError(w, 500, "cannot parse ACK in zookeeper")
+			return
+		}
+
+		if !ackData.Success && ackData.ErrMsg == "empty request" {
+			ackData.Success = true
+			ackData.ErrMsg = "success"
+		}
+
+		glog.Info("[subpool-get] Response: ", ackData.ErrMsg, ", Host: ", ackData.Host.HostName,
+			", Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName,
+			", Old: ", ackData.Old)
+
+		ackByte, _ := json.Marshal(ackData.SubPoolCoinbase)
+		w.Write(ackByte)
+		return
+
+	case <-time.After(time.Duration(configData.ZKSubPoolUpdateAckTimeout) * time.Second):
+		glog.Warning("[subpool-get] ", "timeout when waiting ACK!",
+			" Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName)
+		writeError(w, 504, "timeout when waiting ACK")
+		return
+	}
+}
+
+// updateCoinbaseHandle 更新子池coinbase信息
+func updateCoinbaseHandle(w http.ResponseWriter, req *http.Request) {
+	if len(configData.ZKSubPoolUpdateBaseDir) == 0 {
+		writeError(w, 403, "API disabled")
+		return
+	}
+
+	requestJSON, err := ioutil.ReadAll(req.Body)
+
+	if err != nil {
+		glog.Warning(err, ": ", req.RequestURI)
+		writeError(w, 500, err.Error())
+		return
+	}
+
+	var reqData SubPoolUpdate
+	err = json.Unmarshal(requestJSON, &reqData)
+
+	if err != nil {
+		glog.Info(err, ": ", req.RequestURI)
+		writeError(w, 400, "wrong JSON, "+err.Error())
+		return
+	}
+
+	if len(reqData.Coin) < 1 {
+		writeError(w, 400, "coin cannot be empty")
+		return
+	}
+	if len(reqData.SubPoolName) < 1 {
+		writeError(w, 400, "subpool_name cannot be empty")
+		return
+	}
+	if len(reqData.PayoutAddr) < 1 {
+		writeError(w, 400, "payout_addr cannot be empty")
+		return
+	}
+
+	glog.Info("[subpool-update] Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName,
+		", CoinbaseInfo: ", reqData.CoinbaseInfo, ", PayoutAddr: ", reqData.PayoutAddr)
+
+	reqNode := configData.ZKSubPoolUpdateBaseDir + reqData.Coin + "/" + reqData.SubPoolName
+	ackNode := reqNode + "/ack"
+
+	exists, _, err := zookeeperConn.Exists(reqNode)
+	if err != nil || !exists {
+		glog.Warning("[subpool-update] zk path '", reqNode, "' doesn't exists",
+			" Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName)
+		writeError(w, 404, "subpool '"+reqData.SubPoolName+"' does not exist")
+		return
+	}
+
+	exists, _, ack, err := zookeeperConn.ExistsW(ackNode)
+	if err != nil || !exists {
+		glog.Warning("[subpool-update] zk path '", ackNode, "' doesn't exists",
+			" Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName)
+		writeError(w, 503, "jobmaker cannot ACK the request")
+		return
+	}
+
+	reqByte, _ := json.Marshal(reqData)
+	zookeeperConn.Set(reqNode, reqByte, -1)
+
+	select {
+	case <-ack:
+		ackJSON, _, err := zookeeperConn.Get(ackNode)
+		if err != nil {
+			glog.Warning("[subpool-update] get ACK failed, ", err.Error(),
+				" Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName)
+			writeError(w, 500, "cannot get ACK from zookeeper")
+			return
+		}
+
+		var ackData SubPoolUpdateAckInner
+		err = json.Unmarshal(ackJSON, &ackData)
+		if err != nil {
+			glog.Warning("[subpool-update] parse ACK failed, ", err.Error(),
+				" Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName)
+			writeError(w, 500, "cannot parse ACK in zookeeper")
+			return
+		}
+
+		if !ackData.Success && ackData.ErrNo == 0 {
+			ackData.ErrNo = 500
+		}
+
+		glog.Info("[subpool-update] Response: ", ackData.ErrMsg, ", Host: ", ackData.Host.HostName,
+			", Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName,
+			", Old: ", ackData.Old, ", New: ", ackData.New)
+
+		ackByte, _ := json.Marshal(ackData.SubPoolUpdateAck)
+		w.Write(ackByte)
+		return
+
+	case <-time.After(time.Duration(configData.ZKSubPoolUpdateAckTimeout) * time.Second):
+		glog.Warning("[subpool-update] ", "timeout when waiting ACK!",
+			" Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName)
+		writeError(w, 504, "timeout when waiting ACK")
+		return
 	}
 }
 

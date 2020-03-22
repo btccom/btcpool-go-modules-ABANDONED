@@ -34,5 +34,7 @@
     ],
     "EnableCronJob": true,
     "CronIntervalSeconds": 60,
-    "UserCoinMapURL": "http://127.0.0.1:8000/usercoin.php"
+    "UserCoinMapURL": "http://127.0.0.1:8000/usercoin.php",
+    "ZKSubPoolUpdateBaseDir": "/subpool/",
+    "ZKSubPoolUpdateAckTimeout": 5
 }

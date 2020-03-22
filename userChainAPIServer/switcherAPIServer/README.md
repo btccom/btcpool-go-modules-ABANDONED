@@ -153,7 +153,7 @@ curl -u admin:admin 'http://10.0.0.12:8082/switch?puname=aaaa&coin=bcc'
 HTTP Basic 认证
 
 #### 请求URL
-http://hostname:port/switch-multi-user
+http://hostname:port/switch/multi-user
 
 #### 请求方式
 POST
@@ -209,6 +209,187 @@ curl -u admin:admin -d '{"usercoins":[{"coin":"btc","punames":["a","b","c"]},{"c
 ```json
 {"err_no":108,"err_msg":"usercoins is empty","success":false}
 ```
+
+### 获取子池Coinbase信息和爆块地址
+
+#### 认证方式
+HTTP Basic 认证
+
+#### 请求URL
+http://hostname:port/subpool/get-coinbase
+
+#### 请求方式
+POST
+
+`Content-Type: application/json`
+
+#### 请求Body内容
+```json
+{
+	"coin": "币种",
+	"subpool_name": "子池名称"
+}
+```
+
+#### 响应
+
+成功：
+```json
+{
+	"success": true,
+	"err_no": 0,
+	"err_msg": "success",
+	"subpool_name": "子池名称",
+	"old": {
+		"coinbase_info": "coinbase信息",
+		"payout_addr": "爆块地址"
+	}
+}
+```
+
+失败：
+```json
+{
+	"err_no": 错误代码,
+	"err_msg": "错误信息",
+	"success": false
+}
+```
+
+例子：
+```json
+curl -uadmin:admin -d'{"coin":"btc","subpool_name":"pool3"}' http://localhost:8080/subpool/get-coinbase
+{
+	"success": true,
+	"err_no": 0,
+	"err_msg": "success",
+	"subpool_name": "pool3",
+	"old": {
+		"coinbase_info": "tigerxx",
+		"payout_addr": "34woZDygXWqaVPnNxp5SUnbN6RNQ5koBt4"
+	}
+}
+
+curl -uadmin:admin -d'{"coin":"bch","subpool_name":"pool3"}' http://localhost:8080/subpool/get-coinbase
+{
+	"err_no": 404,
+	"err_msg": "subpool 'pool3' does not exist",
+	"success": false
+}
+```
+
+### 更新子池Coinbase信息和爆块地址
+
+#### 认证方式
+HTTP Basic 认证
+
+#### 请求URL
+http://hostname:port/subpool/update-coinbase
+
+#### 请求方式
+POST
+
+`Content-Type: application/json`
+
+#### 请求Body内容
+```json
+{
+	"coin": "币种",
+	"subpool_name": "子池名称",
+	"payout_addr": "爆块地址",
+	"coinbase_info": "coinbase信息"
+}
+```
+
+#### 响应
+
+成功：
+```json
+{
+	"success": true,
+	"err_no": 0,
+	"err_msg": "success",
+	"subpool_name": "子池名称",
+	"old": {
+		"coinbase_info": "旧coinbase信息",
+		"payout_addr": "旧爆块地址"
+	},
+	"new": {
+		"coinbase_info": "新coinbase信息",
+		"payout_addr": "新爆块地址"
+	}
+}
+```
+
+失败：
+```json
+{
+	"success": false,
+	"err_no": 错误代码,
+	"err_msg": "错误信息",
+	"subpool_name": "子池名称",
+	"old": {
+		"coinbase_info": "旧coinbase信息",
+		"payout_addr": "旧爆块地址"
+	},
+	"new": {
+		"coinbase_info": "",
+		"payout_addr": ""
+	}
+}
+```
+
+请求参数错误：
+```json
+{
+	"err_no": 错误代码,
+	"err_msg": "错误信息",
+	"success": false
+}
+```
+
+例子：
+```json
+curl -uadmin:admin -d'{"coin":"btc","subpool_name":"pool3","payout_addr":"bc1qjl8uwezzlech723lpnyuza0h2cdkvxvh54v3dn","coinbase_info":"tiger"}' http://localhost:8080/subpool/update-coinbase
+{
+	"success": true,
+	"err_no": 0,
+	"err_msg": "success",
+	"subpool_name": "pool3",
+	"old": {
+		"coinbase_info": "hellobtc",
+		"payout_addr": "34woZDygXWqaVPnNxp5SUnbN6RNQ5koBt4"
+	},
+	"new": {
+		"coinbase_info": "tiger",
+		"payout_addr": "bc1qjl8uwezzlech723lpnyuza0h2cdkvxvh54v3dn"
+	}
+}
+
+curl -uadmin:admin -d'{"coin":"btc","subpool_name":"pool3","payout_addr":"bc0qjl8uwezzlech723lpnyuza0h2cdkvxvh54v3dn","coinbase_info":"tiger"}' http://localhost:8080/subpool/update-coinbase
+{
+	"success": false,
+	"err_no": 500,
+	"err_msg": "invalid payout address",
+	"subpool_name": "pool3",
+	"old": {
+		"coinbase_info": "tiger",
+		"payout_addr": "bc1qjl8uwezzlech723lpnyuza0h2cdkvxvh54v3dn"
+	},
+	"new": {
+		"coinbase_info": "",
+		"payout_addr": ""
+	}
+}
+
+curl -uadmin:admin -d'{"coin":"btc","subpool_name":"pool4","payout_addr":"bc1qjl8uwezzlech723lpnyuza0h2cdkvxvh54v3dn","coinbase_info":"tiger"}' http://localhost:8080/subpool/update-coinbase
+{
+	"err_no": 404,
+	"err_msg": "subpool 'pool4' does not exist",
+	"success": false
+}
+```
+
 
 ## 构建 & 运行
 
