@@ -254,6 +254,13 @@ POST
 	"err_msg": "错误信息",
 	"success": false
 }
+
+数据竞争（多个get-coinbase/update-coinbase同时调用时可能会出现，错开时间再试一次就可以成功）：
+{
+	"err_no": 500,
+	"err_msg": "data has been updated at query time",
+	"success": false
+}
 ```
 
 例子：
@@ -274,6 +281,13 @@ curl -uadmin:admin -d'{"coin":"bch","subpool_name":"pool3"}' http://localhost:80
 {
 	"err_no": 404,
 	"err_msg": "subpool 'pool3' does not exist",
+	"success": false
+}
+
+curl -uadmin:admin -d'{"coin":"bch","subpool_name":"pool3"}' http://localhost:8080/subpool/get-coinbase
+{
+	"err_no": 500,
+	"err_msg": "data has been updated at query time",
 	"success": false
 }
 ```
