@@ -161,8 +161,8 @@ func getCoinbaseHandle(w http.ResponseWriter, req *http.Request) {
 	reqNode := configData.ZKSubPoolUpdateBaseDir + reqData.Coin + "/" + reqData.SubPoolName
 	ackNode := reqNode + "/ack"
 
-	exists, _, err := zookeeperConn.Exists(reqNode)
-	if err != nil || !exists {
+	reqByte, stat, err := zookeeperConn.Get(reqNode)
+	if err != nil {
 		glog.Warning("[subpool-get] zk path '", reqNode, "' doesn't exists",
 			" Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName)
 		writeError(w, 404, "subpool '"+reqData.SubPoolName+"' does not exist")
@@ -177,7 +177,13 @@ func getCoinbaseHandle(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	zookeeperConn.Set(reqNode, []byte{}, -1)
+	_, err = zookeeperConn.Set(reqNode, reqByte, stat.Version)
+	if err != nil {
+		glog.Warning("[subpool-get] data has been updated at query time! ", err.Error(),
+			" Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName)
+		writeError(w, 500, "data has been updated at query time")
+		return
+	}
 
 	select {
 	case <-ack:
@@ -279,7 +285,13 @@ func updateCoinbaseHandle(w http.ResponseWriter, req *http.Request) {
 	}
 
 	reqByte, _ := json.Marshal(reqData)
-	zookeeperConn.Set(reqNode, reqByte, -1)
+	_, err = zookeeperConn.Set(reqNode, reqByte, -1)
+	if err != nil {
+		glog.Warning("[subpool-update] set zk path '", reqNode, "' failed! ", err.Error(),
+			" Coin: ", reqData.Coin, ", SubPool: ", reqData.SubPoolName)
+		writeError(w, 500, "write data node failed")
+		return
+	}
 
 	select {
 	case <-ack:
