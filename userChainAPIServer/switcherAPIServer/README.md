@@ -153,7 +153,8 @@ curl -u admin:admin 'http://10.0.0.12:8082/switch?puname=aaaa&coin=bcc'
 HTTP Basic 认证
 
 #### 请求URL
-http://hostname:port/switch/multi-user
+* http://hostname:port/switch/multi-user
+* http://hostname:port/switch-multi-user
 
 #### 请求方式
 POST
@@ -191,7 +192,7 @@ POST
 
 子账户a,b,c切换到btc，d,e切换到bcc：
 ```bash
-curl -u admin:admin -d '{"usercoins":[{"coin":"btc","punames":["a","b","c"]},{"coin":"bcc","punames":["d","e"]}]}' 'http://127.0.0.1:8082/switch-multi-user'
+curl -u admin:admin -d '{"usercoins":[{"coin":"btc","punames":["a","b","c"]},{"coin":"bcc","punames":["d","e"]}]}' 'http://127.0.0.1:8082/switch/multi-user'
 ```
 
 该API的返回结果：
@@ -216,7 +217,8 @@ curl -u admin:admin -d '{"usercoins":[{"coin":"btc","punames":["a","b","c"]},{"c
 HTTP Basic 认证
 
 #### 请求URL
-http://hostname:port/subpool/get-coinbase
+* http://hostname:port/subpool/get-coinbase
+* http://hostname:port/subpool-get-coinbase
 
 #### 请求方式
 POST
@@ -254,8 +256,10 @@ POST
 	"err_msg": "错误信息",
 	"success": false
 }
+```
 
 数据竞争（多个get-coinbase/update-coinbase同时调用时可能会出现，错开时间再试一次就可以成功）：
+```
 {
 	"err_no": 500,
 	"err_msg": "data has been updated at query time",
@@ -298,7 +302,8 @@ curl -uadmin:admin -d'{"coin":"bch","subpool_name":"pool3"}' http://localhost:80
 HTTP Basic 认证
 
 #### 请求URL
-http://hostname:port/subpool/update-coinbase
+* http://hostname:port/subpool/update-coinbase
+* http://hostname:port/subpool-update-coinbase
 
 #### 请求方式
 POST
