@@ -7,6 +7,7 @@ import (
 	"flag"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/golang/glog"
@@ -16,6 +17,22 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/segmentio/kafka-go/snappy"
 )
+
+// MySQLInfo MySQL连接信息
+type MySQLInfo struct {
+	ConnStr string
+	Table   string
+}
+
+// ChainLimit 区块链算力限制
+type ChainLimit struct {
+	MaxHashrate string
+	MySQL MySQLInfo
+
+	name         string  // 内部使用
+	hashrate     float64 // Limit的浮点数表示，内部使用，避免重复解析字符串
+	hashrateBase float64 //币种对应的算力系数，内部使用，避免重复解析配置
+}
 
 // ChainSwitcherConfig 程序配置
 type ChainSwitcherConfig struct {
@@ -30,10 +47,9 @@ type ChainSwitcherConfig struct {
 	FailSafeChain         string
 	FailSafeSeconds       time.Duration
 	ChainNameMap          map[string]string
-	MySQL                 struct {
-		ConnStr string
-		Table   string
-	}
+	MySQL                 MySQLInfo
+	ChainLimits           map[string]ChainLimit
+	RecordLifetime        uint64
 }
 
 // ChainRecord HTTP API中的币种记录
@@ -116,6 +132,27 @@ func main() {
 		return
 	}
 
+	// 验证配置
+	for chain, limit := range configData.ChainLimits {
+		limit.hashrate, err = parseHashrate(limit.MaxHashrate)
+		if err != nil {
+			glog.Fatal("wrong limit number of chain ", chain, ": ", limit.MaxHashrate, ", ", err)
+			return
+		}
+
+		limit.hashrateBase = getHashrateBase(chain)
+		if limit.hashrateBase <= 0 {
+			glog.Fatal("unknown hashrate base of chain ", chain, ": ", limit.hashrateBase)
+			return
+		}
+
+		limit.name = chain
+		configData.ChainLimits[chain] = limit
+	}
+	if configData.RecordLifetime == 0 {
+		configData.RecordLifetime = 60
+	}
+
 	processorConsumer = kafka.NewReader(kafka.ReaderConfig{
 		Brokers:   configData.Kafka.Brokers,
 		Topic:     configData.Kafka.ProcessorTopic,
@@ -144,11 +181,13 @@ func initMySQL() {
 	mysqlConn, err = sql.Open("mysql", configData.MySQL.ConnStr)
 	if err != nil {
 		glog.Fatal("mysql error: ", err)
+		return
 	}
 
 	err = mysqlConn.Ping()
 	if err != nil {
 		glog.Fatal("mysql error: ", err.Error())
+		return
 	}
 
 	mysqlConn.Exec("CREATE TABLE IF NOT EXISTS `" + configData.MySQL.Table + "`(" + `
@@ -166,7 +205,32 @@ func initMySQL() {
 		"`(algorithm,prev_chain,curr_chain,api_result) VALUES(?,?,?,?)")
 	if err != nil {
 		glog.Fatal("mysql error: ", err.Error())
+		return
 	}
+}
+
+func getHashrate(chainLimit ChainLimit) (shareAccept5m float64, userNum int64, err error) {
+	glog.Info("connecting to MySQL of chain ", chainLimit.name, "...")
+	conn, err := sql.Open("mysql", chainLimit.MySQL.ConnStr)
+	if err != nil {
+		return
+	}
+
+	sql := "SELECT sum(accept_5m), sum(1) FROM `" + chainLimit.MySQL.Table + "` WHERE " +
+		"worker_id = 0 AND " +
+		"unix_timestamp() - unix_timestamp(updated_at) < " + strconv.FormatUint(configData.RecordLifetime, 10)
+	glog.V(5).Info("SQL: ", sql)
+	rows, err := conn.Query(sql)
+	if err != nil {
+		return
+	}
+
+	if !rows.Next() {
+		return
+	}
+
+	rows.Scan(&shareAccept5m, &userNum)
+	return
 }
 
 func failSafe() {
@@ -193,6 +257,7 @@ func failSafe() {
 			_, err := insertStmt.Exec(configData.Algorithm, oldChainName, currentChainName, bytes)
 			if err != nil {
 				glog.Fatal("mysql error: ", err.Error())
+				return
 			}
 
 			updateTime = now
@@ -258,12 +323,31 @@ func updateCurrentChain() {
 		return
 	}
 
-	var bestChain string
+	bestChain := configData.FailSafeChain
 	for _, coin := range algorithms.Coins {
 		chainName, ok := configData.ChainNameMap[coin]
 		if ok {
-			bestChain = chainName
-			break
+			if limit, ok := configData.ChainLimits[chainName]; ok {
+				hashrate, userNum, err := getHashrate(limit)
+				if err == nil {
+					if hashrate < limit.hashrate {
+						glog.Info("chain ", limit.name, " (hashrate: ", formatHashrate(hashrate),
+							") < (limit: ", formatHashrate(limit.hashrate), "), ",
+							userNum, " users, selected")
+						bestChain = chainName
+						break
+					} else {
+						glog.Info("chain ", limit.name, " (hashrate: ", formatHashrate(hashrate),
+							") >= (limit: ", formatHashrate(limit.hashrate), "), ",
+							userNum, " users,  ignored")
+					}
+				} else {
+					glog.Error("get hashrate of chain ", limit.name, " failed: ", err)
+				}
+			} else {
+				bestChain = chainName
+				break
+			}
 		}
 	}
 
@@ -277,6 +361,7 @@ func updateCurrentChain() {
 		_, err := insertStmt.Exec(configData.Algorithm, oldChainName, currentChainName, body)
 		if err != nil {
 			glog.Fatal("mysql error: ", err.Error())
+			return
 		}
 	} else {
 		glog.Info("Best Chain not Changed: ", bestChain)

@@ -1,24 +1,41 @@
 {
-    "Kafka": {
-        "Brokers": [
-            "127.0.0.1:9092",
-            "127.0.0.2:9092",
-            "127.0.0.3:9092"
-        ],
-        "ControllerTopic": "BtcManController",
-        "ProcessorTopic": "BtcManProcessor"
-    },
-    "Algorithm": "SHA256",
-    "ChainDispatchAPI": "http://127.0.0.1:8000/chain-dispatch.php",
-    "SwitchIntervalSeconds": 60,
-    "FailSafeChain": "btc",
-    "FailSafeSeconds": 600,
-    "ChainNameMap": {
-        "BTC": "btc",
-        "BCH": "bcc"
-    },
-    "MySQL": {
+  "Kafka": {
+    "Brokers": [
+      "127.0.0.1:9092",
+      "127.0.0.2:9092",
+      "127.0.0.3:9092"
+    ],
+    "ControllerTopic": "BtcManController",
+    "ProcessorTopic": "BtcManProcessor"
+  },
+  "Algorithm": "SHA256",
+  "ChainDispatchAPI": "http://127.0.0.1:8000/chain-dispatch.php",
+  "SwitchIntervalSeconds": 60,
+  "FailSafeChain": "btc",
+  "FailSafeSeconds": 600,
+  "ChainNameMap": {
+    "BTC": "btc",
+    "BCH": "bcc"
+  },
+  "MySQL": {
+    "ConnStr": "user:password@tcp(localhost:3306)/dbname",
+    "Table": "chain_switcher_record"
+  },
+  "ChainLimits": {
+    "bcc": {
+      "MaxHashrate": "100P",
+      "MySQL": {
         "ConnStr": "user:password@tcp(localhost:3306)/dbname",
-        "Table": "chain_switcher_record"
+        "Table": "mining_workers"
+      }
+    },
+    "bsv": {
+      "MaxHashrate": "50P",
+      "MySQL": {
+        "ConnStr": "user:password@tcp(localhost:3306)/dbname",
+        "Table": "mining_workers"
+      }
     }
+  },
+  "RecordLifetime": 60
 }
