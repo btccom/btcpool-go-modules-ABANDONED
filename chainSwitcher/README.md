@@ -72,11 +72,11 @@ docker run -it --rm --network=host \
     -e MySQLTable="chain_switcher_record" \
     \
     -e ChainLimits_bcc_MaxHashrate="100P" \
-    -e ChainLimits_bcc_MySQLConnStr="user:password@tcp(localhost:3306)/bcc_local_db" \
+    -e ChainLimits_bcc_MySQLConnStr="root:root@tcp(localhost:3306)/bcc_local_db" \
     -e ChainLimits_bcc_MySQLTable="mining_workers" \
     \
-    -e ChainLimits_bsv_MaxHashrate="100P" \
-    -e ChainLimits_bsv_MySQLConnStr="user:password@tcp(localhost:3306)/bsv_local_db" \
+    -e ChainLimits_bsv_MaxHashrate="50P" \
+    -e ChainLimits_bsv_MySQLConnStr="root:root@tcp(localhost:3306)/bsv_local_db" \
     -e ChainLimits_bsv_MySQLTable="mining_workers" \
     \
     -e RecordLifetime="60" \

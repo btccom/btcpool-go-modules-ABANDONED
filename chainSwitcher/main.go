@@ -27,7 +27,7 @@ type MySQLInfo struct {
 // ChainLimit 区块链算力限制
 type ChainLimit struct {
 	MaxHashrate string
-	MySQL MySQLInfo
+	MySQL       MySQLInfo
 
 	name         string  // 内部使用
 	hashrate     float64 // Limit的浮点数表示，内部使用，避免重复解析字符串
@@ -148,6 +148,8 @@ func main() {
 
 		limit.name = chain
 		configData.ChainLimits[chain] = limit
+
+		glog.Info("chain ", limit.name, " max hashrate: ", formatHashrate(limit.hashrate))
 	}
 	if configData.RecordLifetime == 0 {
 		configData.RecordLifetime = 60
