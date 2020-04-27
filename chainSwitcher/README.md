@@ -67,9 +67,19 @@ docker run -it --rm --network=host \
     -e SwitchIntervalSeconds=60 \
     -e FailSafeChain=btc \
     -e FailSafeSeconds=600 \
-    -e ChainNameMap='{"BTC":"btc","BCH":"bcc"}' \
+    -e ChainNameMap='{"BTC":"btc","BCH":"bcc","BSV":"bsv"}' \
     -e MySQLConnStr="root:root@tcp(localhost:3306)/bpool_local_db" \
     -e MySQLTable="chain_switcher_record" \
+    \
+    -e ChainLimits_bcc_MaxHashrate="100P" \
+    -e ChainLimits_bcc_MySQLConnStr="user:password@tcp(localhost:3306)/bcc_local_db" \
+    -e ChainLimits_bcc_MySQLTable="mining_workers" \
+    \
+    -e ChainLimits_bsv_MaxHashrate="100P" \
+    -e ChainLimits_bsv_MySQLConnStr="user:password@tcp(localhost:3306)/bsv_local_db" \
+    -e ChainLimits_bsv_MySQLTable="mining_workers" \
+    \
+    -e RecordLifetime="60" \
     btcpool-chain-switcher -logtostderr -v 2
 
 # 守护进程

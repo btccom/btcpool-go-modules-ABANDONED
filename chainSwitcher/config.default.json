@@ -25,14 +25,14 @@
     "bcc": {
       "MaxHashrate": "100P",
       "MySQL": {
-        "ConnStr": "user:password@tcp(localhost:3306)/dbname",
+        "ConnStr": "user:password@tcp(localhost:3306)/bcc_local_db",
         "Table": "mining_workers"
       }
     },
     "bsv": {
       "MaxHashrate": "50P",
       "MySQL": {
-        "ConnStr": "user:password@tcp(localhost:3306)/dbname",
+        "ConnStr": "user:password@tcp(localhost:3306)/bsv_local_db",
         "Table": "mining_workers"
       }
     }

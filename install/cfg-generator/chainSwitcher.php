@@ -36,7 +36,26 @@ if (empty($c['ChainNameMap']) || in_array('', $c['ChainNameMap'])) {
 $c['MySQL']['ConnStr'] = notNullTrim("MySQLConnStr");
 $c['MySQL']['Table'] = optionalTrim('MySQLTable', 'chain_switcher_record');
 
+$c['ChainLimits'] = [];
+foreach ($c['ChainNameMap'] as $chain) {
+    if (isset($_ENV["ChainLimits_{$chain}_MaxHashrate"])) {
+        $c['ChainLimits'][$chain] = [
+            'MaxHashrate' => notNullTrim("ChainLimits_{$chain}_MaxHashrate"),
+            'MySQL' => [
+                'ConnStr' => notNullTrim("ChainLimits_{$chain}_MySQLConnStr"),
+                'Table' => optionalTrim("ChainLimits_{$chain}_MySQLTable",'mining_workers'),
+            ],
+        ];
+    }
+}
+
+$c['RecordLifetime'] = (int)optionalTrim('RecordLifetime', '60');
+
 echo toJSON($c);
 
-$c['MySQL']['ConnStr'] = preg_replace('/^.*@(.*?)$/', '******:******@$1', $c['MySQL']['ConnStr']);
+hideMySQLPwd($c['MySQL']['ConnStr']);
 outputConfigJSON($c);
+
+function hideMySQLPwd(&$str) {
+    $str = preg_replace('/^.*@(.*?)$/', '******:******@$1', $str);
+}
