@@ -232,7 +232,8 @@ func getHashrate(chainLimit ChainLimit) (hashrate5m float64, userNum int64, err 
 	}
 
 	rows.Scan(&hashrate5m, &userNum)
-	hashrate5m *= chainLimit.hashrateBase
+	// hashrate5m = share * base / time
+	hashrate5m *= chainLimit.hashrateBase / 300
 	return
 }
 
