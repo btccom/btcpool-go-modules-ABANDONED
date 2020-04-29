@@ -211,7 +211,7 @@ func initMySQL() {
 	}
 }
 
-func getHashrate(chainLimit ChainLimit) (shareAccept5m float64, userNum int64, err error) {
+func getHashrate(chainLimit ChainLimit) (hashrate5m float64, userNum int64, err error) {
 	glog.Info("connecting to MySQL of chain ", chainLimit.name, "...")
 	conn, err := sql.Open("mysql", chainLimit.MySQL.ConnStr)
 	if err != nil {
@@ -231,7 +231,8 @@ func getHashrate(chainLimit ChainLimit) (shareAccept5m float64, userNum int64, e
 		return
 	}
 
-	rows.Scan(&shareAccept5m, &userNum)
+	rows.Scan(&hashrate5m, &userNum)
+	hashrate5m *= chainLimit.hashrateBase
 	return
 }
 
