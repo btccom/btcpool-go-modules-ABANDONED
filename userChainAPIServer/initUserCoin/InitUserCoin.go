@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/golang/glog"
 	"github.com/samuel/go-zookeeper/zk"
@@ -105,7 +106,11 @@ func InitUserCoin(coin string, url string) {
 					lastPUID = puid
 				}
 
-				C.addUser(C.int(puid), C.CString(puname), C.CString(coin))
+				punameC := C.CString(puname)
+				coinC := C.CString(coin)
+				C.addUser(C.int(puid), punameC, coinC)
+				C.free(unsafe.Pointer(punameC))
+				C.free(unsafe.Pointer(coinC))
 			}
 
 			glog.Info("Finish: ", coin, "; User Num: ", len(userIDMapResponse.Data), "; ", url)

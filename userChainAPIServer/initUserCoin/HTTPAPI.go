@@ -7,6 +7,7 @@ import "C"
 import (
 	"net/http"
 	"strconv"
+	"unsafe"
 
 	"github.com/golang/glog"
 )
@@ -37,13 +38,19 @@ func getUserIDList(w http.ResponseWriter, req *http.Request) {
 	lastIDStr := req.FormValue("last_id")
 	lastID, _ := strconv.Atoi(lastIDStr)
 
-	json := C.GoString(C.getUserListJson(C.int(lastID), C.CString(coin)))
+	coinC := C.CString(coin)
+	json := C.GoString(C.getUserListJson(C.int(lastID), coinC))
+	C.free(unsafe.Pointer(coinC))
 	w.Write([]byte(json))
 }
 
 // GetUserUpdateTime 获取用户的更新时间（即进入列表的时间）
 func GetUserUpdateTime(puname string, coin string) int64 {
-	return int64(C.getUserUpdateTime(C.CString(puname), C.CString(coin)))
+	punameC := C.CString(puname)
+	coinC := C.CString(coin)
+	defer C.free(unsafe.Pointer(punameC))
+	defer C.free(unsafe.Pointer(coinC))
+	return int64(C.getUserUpdateTime(punameC, coinC))
 }
 
 // GetSafetyPeriod 获取用户更新的安全期（在安全期内，子账户可能尚未进入sserver的缓存）
