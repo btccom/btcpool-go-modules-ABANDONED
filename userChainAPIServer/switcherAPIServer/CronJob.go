@@ -41,7 +41,9 @@ func RunCronJob() {
 			url := configData.UserCoinMapURL
 			// 若上次请求过接口，则附加上次请求的时间到url
 			if lastRequestDate > 0 {
-				url += "?last_date=" + strconv.FormatInt(lastRequestDate, 10)
+				// 减去configData.CronIntervalSeconds是为了防止出现竟态条件。
+				// 比如在上次拉取之后，同一秒内又有币种切换，如果不减去，就可能会错过这个切换消息。
+				url += "?last_date=" + strconv.FormatInt(lastRequestDate-int64(configData.CronIntervalSeconds), 10)
 			}
 			glog.Info("HTTP GET ", url)
 			response, err := http.Get(url)
