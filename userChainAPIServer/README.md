@@ -39,6 +39,7 @@ docker run -it --rm --network=host \
   -e ListenAddr='0.0.0.0:8082' \
   -e EnableCronJob='true' \
   -e UserCoinMapURL='http://localhost:8000/usercoin.php' \
+  -e StratumServerCaseInsensitive='true' \
   btcpool-user-chain-api-server:latest -logtostderr -v 2
 
 # 守护进程
@@ -55,6 +56,7 @@ docker run -it --name user-chain-api-server --network=host --restart always -d \
   -e ListenAddr='0.0.0.0:8082' \
   -e EnableCronJob='true' \
   -e UserCoinMapURL='http://localhost:8000/usercoin.php' \
+  -e StratumServerCaseInsensitive='true' \
   btcpool-user-chain-api-server:latest -logtostderr -v 2
 ```
 
