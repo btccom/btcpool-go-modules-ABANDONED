@@ -7,15 +7,10 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unsafe"
 
 	"github.com/golang/glog"
 	"github.com/samuel/go-zookeeper/zk"
 )
-
-// #cgo CXXFLAGS: -std=c++11
-// #include "UserListJSON.h"
-import "C"
 
 // UserIDMapResponse 用户id列表接口响应的数据结构
 type UserIDMapResponse struct {
@@ -105,12 +100,6 @@ func InitUserCoin(coin string, url string) {
 				if puid > lastPUID {
 					lastPUID = puid
 				}
-
-				punameC := C.CString(puname)
-				coinC := C.CString(coin)
-				C.addUser(C.int(puid), punameC, coinC)
-				C.free(unsafe.Pointer(punameC))
-				C.free(unsafe.Pointer(coinC))
 			}
 
 			glog.Info("Finish: ", coin, "; User Num: ", len(userIDMapResponse.Data), "; ", url)

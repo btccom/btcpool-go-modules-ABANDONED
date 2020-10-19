@@ -141,12 +141,6 @@ func Main(configFilePath string) {
 		go RunUserAutoReg(configData)
 	}
 
-	// 启动子账户列表API
-	if configData.EnableAPIServer {
-		waitGroup.Add(1)
-		go runAPIServer()
-	}
-
 	waitGroup.Wait()
 
 	glog.Info("Init User Coin Finished.")
