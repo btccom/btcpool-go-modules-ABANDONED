@@ -33,10 +33,6 @@ var (
 	// APIErrReadRecordFailed 读取记录失败
 	APIErrReadRecordFailed = NewAPIError(105, "read record failed")
 
-	// APIErrCoinNoChange 币种未改变
-	//（该错误不再出现，允许切换到相同币种。这样一来，如果stratumSwitcher错过了前一个切换消息，可以再收到一次切换消息以完成切换）
-	//APIErrCoinNoChange = NewAPIError(106, "coin no change")
-
 	// APIErrWriteRecordFailed 写入记录失败
 	APIErrWriteRecordFailed = NewAPIError(107, "write record failed")
 
@@ -44,5 +40,8 @@ var (
 	APIErrRecordExists = NewAPIError(108, "record exists, skip")
 
 	// APIErrUserCoinsEmpty 用户币种数组为空
-	APIErrUserCoinsEmpty = NewAPIError(108, "usercoins is empty")
+	APIErrUserCoinsEmpty = NewAPIError(109, "usercoins is empty")
+
+	// APIErrUserSubPoolsEmpty 用户子池数组为空
+	APIErrUserSubPoolsEmpty = NewAPIError(110, "usersubpools is empty")
 )

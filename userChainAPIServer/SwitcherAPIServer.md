@@ -1,16 +1,18 @@
+# 代码已重构
+
+文档需要更新
+
 # Switcher API Server
 
 该进程用来修改 zookeeper 中的币种记录，以便控制 StratumSwitcher 进行币种切换。该进程一共有两种工作方式，一为通过定时任务拉取最新的用户币种信息，二为外部通过调用该进程提供的API来主动推送用户币种信息。
 
-## 定时任务
-
-在配置文件中设置 `EnableCronJob` 为 `true` 即可开启定时任务，此后进程将每隔 `CronIntervalSeconds` 拉取一次 `UserCoinMapURL`，以获得最新的用户币种信息。
+## 定时更新用户币种
 
 ### 接口约定
 
-假设 `UserCoinMapURL` 为 `http://127.0.0.1:8000/usercoin.php`，则程序首次访问的实际URL为：
+假设 `UserCoinMapURL` 为 `http://127.0.0.1:58080/usercoin.php`，则程序首次访问的实际URL为：
 ```
-http://127.0.0.1:8000/usercoin.php?last_date=0
+http://127.0.0.1:58080/usercoin.php?last_date=0
 ```
 
 接口返回一个JSON字符串，包含所有用户及其正在挖的币种（无论是否进行过切换），形如：
@@ -30,9 +32,9 @@ http://127.0.0.1:8000/usercoin.php?last_date=0
 ```
 其中，`user1`、`user2`、`user3`为子账户名，`btc`和`bcc`为币种，`now_date`为服务器的当前系统时间。
 
-经过配置文件中设置的 `CronIntervalSeconds` 秒后，程序会再次访问如下URL：
+经过配置文件中设置的 `FetchUserMapIntervalSeconds` 秒后，程序会再次访问如下URL：
 ```
-http://127.0.0.1:8000/usercoin.php?last_date=1513239055
+http://127.0.0.1:58080/usercoin.php?last_date=1513239055
 ```
 其中，`1513239055`为上次服务器返回的`now_date`。
 
@@ -70,6 +72,9 @@ http://127.0.0.1:8000/usercoin.php?last_date=1513239055
 
 ```php
 <?php
+# A demo for `UserCoinMapURL` in `btcpool-go-modules/switcherAPIServer/config.json`.
+# The coin of users mining will be updated randomly.
+
 header('Content-Type: application/json');
 
 $last_id = (int) $_GET['last_id'];
@@ -83,24 +88,117 @@ $users = [
     'testpool' => $coins[rand(0,1)],
 ];
 
-if ($last_id >= count($users)) {
-    $users = [];
+echo json_encode(
+    [
+        'err_no' => 0,
+        'err_msg' => null,
+        'data' => [
+            'user_coin' => (object) $users,
+            'now_date' => time(),
+        ],
+    ]
+);
+```
+
+## 定时更新用户所在子池
+
+### 接口约定
+
+假设 `UserSubPoolMapURL` 为 `http://127.0.0.1:58080/usersubpool.php`，则程序首次访问的实际URL为：
+```
+http://127.0.0.1:58080/usersubpool.php?last_date=0
+```
+
+接口返回一个JSON字符串，包含所有用户及其所在子池（留空表示在主池）：
+```json
+{
+    "err_no": 0,
+    "data": {
+        "user_subpool": {
+            "user1": "subpool1",
+            "user2": "subpool2",
+            "user3": "subpool1",
+            "user4": ""
+        },
+        "now_date": 1513239055
+    }
 }
+```
+其中，`user1`、`user2`、`user3`为子账户名，`subpool1`和`subpool2`为子池名称，`""`表示`user4`在主池，`now_date`为服务器的当前系统时间。
+
+经过配置文件中设置的 `FetchUserMapIntervalSeconds` 秒后，程序会再次访问如下URL：
+```
+http://127.0.0.1:58080/usersubpool.php?last_date=1513239055
+```
+其中，`1513239055`为上次服务器返回的`now_date`。
+
+此时，服务器可根据程序提供的`last_date`进行判断，如果在`last_date`到现在这段时间内没有任何用户切换过子池，则返回空`user_subpool`对象：
+```json
+{
+    "err_no": 0,
+    "data": {
+        "user_subpool": {},
+        "now_date": 1513239064
+    }
+}
+```
+> 注意：不可返回`user_subpool`数组，如`"user_subpool":[]`，否则程序会在日志中产生警告。使用PHP数组实现接口时，在输出前请先将`user_subpool`成员的类型强制转换为对象。
+
+否则，返回在这段时间内进行切换的用户及切换后的子池：
+```json
+{
+    "err_no": 0,
+    "data": {
+        "user_subpool": {
+            "user2": "subpool1",
+            "user3": ""
+        },
+        "now_date": 1513239064
+    }
+}
+```
+
+备注：如果性能不受影响，服务器也可以忽略`last_date`参数，总是返回所有用户及其所在子池，无论其是否或在什么时间进行过切换。
+
+### 参考实现
+
+`UserSubPoolMapURL` 的参考实现如下：
+
+```php
+<?php
+# A demo for `UserSubPoolMapURL` in `btcpool-go-modules/switcherAPIServer/config.json`.
+# The coin of users mining will be updated randomly.
+
+header('Content-Type: application/json');
+
+$last_id = (int) $_GET['last_id'];
+
+$subpools = ["subpool1", "subpool2", ""];
+
+$users = [
+    'hu60' => $subpools[rand(0,2)],
+    'YihaoTest' => $subpools[rand(0,2)],
+    'YihaoTest3' => $subpools[rand(0,2)],
+    'testpool' => $subpools[rand(0,2)],
+];
 
 echo json_encode(
     [
         'err_no' => 0,
         'err_msg' => null,
-        'data' => (object) $users,
+        'data' => [
+            'user_subpool' => (object) $users,
+            'now_date' => time(),
+        ],
     ]
 );
 ```
 
 ## API 文档
 
-在配置文件中设置 EnableAPIServer 为 true 即可开启该API服务。外部在用户发起切换请求时可调用该API主动推送切换消息，以便 StratumSwitcher 第一时间进行币种切换。
+在配置文件中设置 EnableAPIServer 为 true 即可开启该API服务。外部在用户发起切换请求时可调用该API主动推送切换消息，以便 sserver 第一时间进行币种切换。
 
-目前共有两种调用方式：
+目前共有以下API：
 
 ### 单用户切换
 
@@ -108,7 +206,8 @@ echo json_encode(
 HTTP Basic 认证
 
 #### 请求URL
-http://hostname:port/switch
+* http://hostname:port/switch
+* http://hostname:port/user/switch-chain
 
 #### 请求方式
 GET 或 POST
@@ -123,12 +222,12 @@ GET 或 POST
 
 子账户aaaa切换到btc：
 ```bash
-curl -u admin:admin 'http://127.0.0.1:8082/switch?puname=aaaa&coin=btc'
+curl -u admin:admin 'http://127.0.0.1:8080/switch?puname=aaaa&coin=btc'
 ```
 
 子账户aaaa切换到bcc：
 ```bash
-curl -u admin:admin 'http://10.0.0.12:8082/switch?puname=aaaa&coin=bcc'
+curl -u admin:admin 'http://10.0.0.12:8080/switch?puname=aaaa&coin=bcc'
 ```
 
 该API的返回结果：
@@ -155,6 +254,7 @@ HTTP Basic 认证
 #### 请求URL
 * http://hostname:port/switch/multi-user
 * http://hostname:port/switch-multi-user
+* http://hostname:port/user/switch-chain/multi
 
 #### 请求方式
 POST
@@ -192,7 +292,7 @@ POST
 
 子账户a,b,c切换到btc，d,e切换到bcc：
 ```bash
-curl -u admin:admin -d '{"usercoins":[{"coin":"btc","punames":["a","b","c"]},{"coin":"bcc","punames":["d","e"]}]}' 'http://127.0.0.1:8082/switch/multi-user'
+curl -u admin:admin -d '{"usercoins":[{"coin":"btc","punames":["a","b","c"]},{"coin":"bcc","punames":["d","e"]}]}' 'http://127.0.0.1:8080/switch/multi-user'
 ```
 
 该API的返回结果：
@@ -209,6 +309,122 @@ curl -u admin:admin -d '{"usercoins":[{"coin":"btc","punames":["a","b","c"]},{"c
 例如
 ```json
 {"err_no":108,"err_msg":"usercoins is empty","success":false}
+```
+
+### 切换用户所在子池
+
+#### 认证方式
+HTTP Basic 认证
+
+#### 请求URL
+* http://hostname:port/user/change-subpool
+
+#### 请求方式
+GET 或 POST
+
+#### 参数
+|  名称  |  类型  |   含义   |
+| ------ | ----- | -------- |
+| puname | string | 子账户名 |
+| subpool | string | 子池名称（留空切换到主池） |
+
+#### 例子
+
+子账户aaaa切换到子池subpool1：
+```bash
+curl -u admin:admin 'http://127.0.0.1:8080/user/change-subpool?puname=aaaa&subpool=subpool1'
+```
+
+子账户aaaa切换到主池：
+```bash
+curl -u admin:admin 'http://10.0.0.12:8080/user/change-subpool?puname=aaaa&subpool='
+```
+
+该API的返回结果：
+
+成功：
+```json
+{"err_no":0, "err_msg":"", "success":true}
+```
+
+失败：
+```
+{"err_no":非0整数, "err_msg":"错误信息", "success":false}
+```
+例如
+```json
+{"err_no":101,"err_msg":"puname is empty","success":false}
+```
+
+### 批量切换用户所在子池
+
+#### 认证方式
+HTTP Basic 认证
+
+#### 请求URL
+* http://hostname:port/user/change-subpool/multi
+
+#### 请求方式
+POST
+
+`Content-Type: application/json`
+
+#### 请求Body内容
+
+```json
+{
+    "usersubpools": [
+        {
+            "subpool": "子池1",
+            "punames": [
+                "用户1",
+                "用户2",
+                "用户3",
+                ...
+            ]
+        },
+        {
+            "subpool": "子池2",
+            "punames": [
+                "用户4",
+                "用户5",
+                ...
+            ]
+        },
+        {
+            "subpool": "",
+            "punames": [
+                "用户6",
+                "用户7",
+                ...
+            ]
+        },
+        ...
+    ]
+}
+```
+
+#### 例子
+
+子账户a,b,c切换到subpool1，d,e切换到主池：
+```bash
+curl -u admin:admin -d '{"usersubpools":[{"subpool":"subpool1","punames":["a","b","c"]},{"subpool":"","punames":["d","e"]}]}' 'http://127.0.0.1:8080/user/change-subpool/multi'
+```
+
+该API的返回结果：
+
+所有子账户均切换成功：
+```json
+{"err_no":0, "err_msg":"", "success":true}
+```
+
+任一子账户切换失败：
+```
+{"err_no":非0整数, "err_msg":"错误信息", "success":false}
+```
+例如
+```json
+{"err_no":101,"err_msg":"puname is empty","success":false}
 ```
 
 ### 获取子池Coinbase信息和爆块地址

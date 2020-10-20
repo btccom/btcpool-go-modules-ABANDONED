@@ -1,5 +1,5 @@
 # User Chain API Server
-由两个模块合并而来，请看具体子模块的介绍（已重构，文档需要更新）：
+由两个模块合并而来，请看具体子模块的介绍（代码已重构，文档需要更新）：
 * [Switcher API Server](SwitcherAPIServer.md)
   提供触发 Stratum 切换的API
 * [Init User Coin](InitUserCoin.md)

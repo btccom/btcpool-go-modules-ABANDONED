@@ -44,9 +44,11 @@ type ConfigData struct {
 	AvailableCoins []string
 
 	// 定时检测间隔时间
-	FetchUserCoinIntervalSeconds int
+	FetchUserMapIntervalSeconds int
 	// 用户:币种对应表的URL
 	UserCoinMapURL string
+	// 用户：子池对应表的URL
+	UserSubPoolMapURL string
 
 	// EnableUserAutoReg 启用用户自动注册
 	EnableUserAutoReg bool
@@ -100,8 +102,8 @@ func ReadConfigFile(configFilePath string) (configData *ConfigData, err error) {
 	if configData.FetchUserListIntervalSeconds < 1 {
 		configData.FetchUserListIntervalSeconds = 10
 	}
-	if configData.FetchUserCoinIntervalSeconds < 1 {
-		configData.FetchUserCoinIntervalSeconds = 60
+	if configData.FetchUserMapIntervalSeconds < 1 {
+		configData.FetchUserMapIntervalSeconds = 60
 	}
 	if configData.ZKSubPoolUpdateAckTimeout < 1 {
 		configData.ZKSubPoolUpdateAckTimeout = 5

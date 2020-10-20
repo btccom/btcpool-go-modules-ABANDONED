@@ -41,6 +41,13 @@ func main() {
 		}
 	}
 
+	if len(configData.UserSubPoolMapURL) > 0 {
+		err = manager.FetchUserSubPoolMap(false)
+		if err != nil {
+			glog.Fatal("FetchUserSubPoolMap() failed: ", err)
+		}
+	}
+
 	// 初始化完成，写入用户币种记录
 	err = manager.FlushAllToZK()
 	if err != nil {
@@ -57,6 +64,12 @@ func main() {
 	if len(configData.UserCoinMapURL) > 0 {
 		waitGroup.Add(1)
 		go manager.RunFetchUserCoinMapCronJob(&waitGroup)
+	}
+
+	// 启动用户子池映射表定时更新任务
+	if len(configData.UserSubPoolMapURL) > 0 {
+		waitGroup.Add(1)
+		go manager.RunFetchUserSubPoolMapCronJob(&waitGroup)
 	}
 
 	// 启动API服务器

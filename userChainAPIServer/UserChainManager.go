@@ -37,8 +37,9 @@ type UserChainManager struct {
 	mutex        *sync.RWMutex
 	userChainMap map[string]*UserChainInfo
 
-	lastPUID        map[string]int32 // 上次获取的最大PUID
-	lastRequestDate int64            // 上次请求接口的时间
+	lastPUID               map[string]int32 // 上次获取的最大PUID
+	lastCoinRequestDate    int64            // 上次请求币种接口的时间
+	lastSubPoolRequestDate int64            // 上次请求子池接口的时间
 }
 
 // UserIDMapResponse 用户id列表接口响应的数据结构
@@ -55,10 +56,11 @@ type UserIDMapEmptyResponse struct {
 	Data   []interface{} `json:"data"`
 }
 
-// UserCoinMapData 用户币种列表接口响应的data字段数据结构
+// UserCoinMapData 用户币种/子池列表接口响应的data字段数据结构
 type UserCoinMapData struct {
-	UserCoin map[string]string `json:"user_coin"`
-	NowDate  int64             `json:"now_date"`
+	UserCoin    map[string]string `json:"user_coin"`
+	UserSubPool map[string]string `json:"user_subpool"`
+	NowDate     int64             `json:"now_date"`
 }
 
 // UserCoinMapResponse 用户币种列表接口响应的数据结构
@@ -165,6 +167,18 @@ func (manager *UserChainManager) GetChain(userName string) string {
 	return info.ChainName
 }
 
+// GetSubPool 获取用户所在子池
+func (manager *UserChainManager) GetSubPool(userName string) string {
+	// map中存储的是指针，所以必须全程持有锁
+	manager.mutex.RLock()
+	defer manager.mutex.RUnlock()
+	info, ok := manager.userChainMap[userName]
+	if !ok {
+		return ""
+	}
+	return info.SubPoolName
+}
+
 // RegularUserName 规范化传入的用户名
 func (manager *UserChainManager) RegularUserName(userName string) string {
 	if strings.Contains(userName, "_") {
@@ -240,6 +254,7 @@ func (manager *UserChainManager) FetchUserIDList(chain string, update bool) erro
 	if lastPUID, ok := manager.lastPUID[chain]; ok {
 		url += "?last_id=" + strconv.Itoa(int(lastPUID))
 	} else {
+		url += "?last_id=0"
 		manager.lastPUID[chain] = 0
 	}
 
@@ -276,7 +291,7 @@ func (manager *UserChainManager) FetchUserIDList(chain string, update bool) erro
 		return errors.New("API Returned a Error: " + string(body))
 	}
 
-	glog.Info("HTTP GET Success. User Num: ", len(userIDMapResponse.Data))
+	glog.Info("FetchUserIDList Success. User Num: ", len(userIDMapResponse.Data))
 
 	// 遍历用户币种列表
 	for puname, puid := range userIDMapResponse.Data {
@@ -301,10 +316,12 @@ func (manager *UserChainManager) FetchUserIDList(chain string, update bool) erro
 func (manager *UserChainManager) FetchUserCoinMap(update bool) error {
 	url := manager.configData.UserCoinMapURL
 	// 若上次请求过接口，则附加上次请求的时间到url
-	if manager.lastRequestDate > 0 {
+	if manager.lastCoinRequestDate > 0 {
 		// 减去configData.CronIntervalSeconds是为了防止出现竟态条件。
 		// 比如在上次拉取之后，同一秒内又有币种切换，如果不减去，就可能会错过这个切换消息。
-		url += "?last_date=" + strconv.FormatInt(manager.lastRequestDate-int64(manager.configData.FetchUserCoinIntervalSeconds), 10)
+		url += "?last_date=" + strconv.FormatInt(manager.lastCoinRequestDate-int64(manager.configData.FetchUserMapIntervalSeconds), 10)
+	} else {
+		url += "?last_date=0"
 	}
 	glog.Info("FetchUserCoinMap ", url)
 	response, err := http.Get(url)
@@ -332,14 +349,69 @@ func (manager *UserChainManager) FetchUserCoinMap(update bool) error {
 	}
 
 	// 记录本次请求的时间
-	manager.lastRequestDate = userCoinMapResponse.Data.NowDate
+	manager.lastCoinRequestDate = userCoinMapResponse.Data.NowDate
 
-	glog.Info("HTTP GET Success. TimeStamp: ", userCoinMapResponse.Data.NowDate, "; UserCoin Num: ", len(userCoinMapResponse.Data.UserCoin))
+	glog.Info("FetchUserCoinMap Success. TimeStamp: ", userCoinMapResponse.Data.NowDate, "; UserCoin Num: ", len(userCoinMapResponse.Data.UserCoin))
 
 	// 遍历用户币种列表
 	for puname, chain := range userCoinMapResponse.Data.UserCoin {
 		puname = manager.RegularUserName(puname)
 		manager.SetChain(puname, chain)
+		if update {
+			err = manager.WriteToZK(puname)
+			if err != nil {
+				glog.Error("WriteToZK(", puname, ") failed: ", err)
+			}
+		}
+	}
+	return nil
+}
+
+// FetchUserSubPoolMap 拉取用户子池映射表来更新用户子池记录
+func (manager *UserChainManager) FetchUserSubPoolMap(update bool) error {
+	url := manager.configData.UserSubPoolMapURL
+	// 若上次请求过接口，则附加上次请求的时间到url
+	if manager.lastSubPoolRequestDate > 0 {
+		// 减去configData.CronIntervalSeconds是为了防止出现竟态条件。
+		// 比如在上次拉取之后，同一秒内又有币种切换，如果不减去，就可能会错过这个切换消息。
+		url += "?last_date=" + strconv.FormatInt(manager.lastSubPoolRequestDate-int64(manager.configData.FetchUserMapIntervalSeconds), 10)
+	} else {
+		url += "?last_date=0"
+	}
+	glog.Info("FetchUserSubPoolMap ", url)
+	response, err := http.Get(url)
+
+	if err != nil {
+		return errors.New("HTTP Request Failed: " + err.Error())
+	}
+
+	body, err := ioutil.ReadAll(response.Body)
+
+	if err != nil {
+		return errors.New("HTTP Fetch Body Failed: " + err.Error())
+	}
+
+	userCoinMapResponse := new(UserCoinMapResponse)
+
+	err = json.Unmarshal(body, userCoinMapResponse)
+
+	if err != nil {
+		return errors.New("Parse Result Failed: " + err.Error() + "; " + string(body))
+	}
+
+	if userCoinMapResponse.ErrNo != 0 {
+		return errors.New("API Returned a Error: " + string(body))
+	}
+
+	// 记录本次请求的时间
+	manager.lastCoinRequestDate = userCoinMapResponse.Data.NowDate
+
+	glog.Info("FetchUserSubPoolMap Success. TimeStamp: ", userCoinMapResponse.Data.NowDate, "; UserSubPool Num: ", len(userCoinMapResponse.Data.UserSubPool))
+
+	// 遍历用户币种列表
+	for puname, subpool := range userCoinMapResponse.Data.UserSubPool {
+		puname = manager.RegularUserName(puname)
+		manager.SetSubPool(puname, subpool)
 		if update {
 			err = manager.WriteToZK(puname)
 			if err != nil {
@@ -366,10 +438,22 @@ func (manager *UserChainManager) RunFetchUserIDListCronJob(waitGroup *sync.WaitG
 func (manager *UserChainManager) RunFetchUserCoinMapCronJob(waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
 	for {
-		time.Sleep(time.Duration(manager.configData.FetchUserCoinIntervalSeconds) * time.Second)
+		time.Sleep(time.Duration(manager.configData.FetchUserMapIntervalSeconds) * time.Second)
 		err := manager.FetchUserCoinMap(true)
 		if err != nil {
 			glog.Error("FetchUserCoinMap() failed: ", err)
+		}
+	}
+}
+
+// RunFetchUserSubPoolMapCronJob 运行定时拉取用户子池映射表任务
+func (manager *UserChainManager) RunFetchUserSubPoolMapCronJob(waitGroup *sync.WaitGroup) {
+	defer waitGroup.Done()
+	for {
+		time.Sleep(time.Duration(manager.configData.FetchUserMapIntervalSeconds) * time.Second)
+		err := manager.FetchUserSubPoolMap(true)
+		if err != nil {
+			glog.Error("FetchUserSubPoolMap() failed: ", err)
 		}
 	}
 }

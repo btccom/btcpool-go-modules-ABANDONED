@@ -21,8 +21,9 @@
         "bcc"
     ],
 
-    "FetchUserCoinIntervalSeconds": 60,
+    "FetchUserMapIntervalSeconds": 60,
     "UserCoinMapURL": "http://127.0.0.1:58080/usercoin.php",
+    "UserSubPoolMapURL": "http://127.0.0.1:58080/usersubpool.php",
 
     "EnableUserAutoReg": true,
     "ZKAutoRegWatchDir": "/stratumSwitcher/bitcoin_autoreg/",

@@ -18,9 +18,16 @@ type SwitchUserCoins struct {
 	PUNames []string `json:"punames"`
 }
 
+// SwitchUserSubPools 欲切换的用户和子池
+type SwitchUserSubPools struct {
+	SubPool string   `json:"subpool"`
+	PUNames []string `json:"punames"`
+}
+
 // SwitchMultiUserRequest 多用户切换请求数据结构
 type SwitchMultiUserRequest struct {
-	UserCoins []SwitchUserCoins `json:"usercoins"`
+	UserCoins    []SwitchUserCoins    `json:"usercoins"`
+	UserSubPools []SwitchUserSubPools `json:"usersubpools"`
 }
 
 // APIResponse API响应数据结构
@@ -92,9 +99,15 @@ func (manager *UserChainManager) runAPIServer(waitGroup *sync.WaitGroup) {
 	glog.Info("Listen HTTP ", manager.configData.ListenAddr)
 
 	http.HandleFunc("/switch", manager.basicAuth(manager.switchHandle))
+	http.HandleFunc("/user/switch-chain", manager.basicAuth(manager.switchHandle))
 
 	http.HandleFunc("/switch/multi-user", manager.basicAuth(manager.switchMultiUserHandle))
 	http.HandleFunc("/switch-multi-user", manager.basicAuth(manager.switchMultiUserHandle))
+	http.HandleFunc("/user/switch-chain/multi", manager.basicAuth(manager.switchMultiUserHandle))
+
+	http.HandleFunc("/user/change-subpool", manager.basicAuth(manager.changeSubPoolHandle))
+
+	http.HandleFunc("/user/change-subpool/multi", manager.basicAuth(manager.changeMultiUserSubPoolHandle))
 
 	http.HandleFunc("/subpool/get-coinbase", manager.basicAuth(manager.getCoinbaseHandle))
 	http.HandleFunc("/subpool-get-coinbase", manager.basicAuth(manager.getCoinbaseHandle))
@@ -436,6 +449,94 @@ func (manager *UserChainManager) changeMiningCoin(puname string, coin string) (o
 	puname = manager.RegularUserName(puname)
 	oldCoin = manager.GetChain(puname)
 	manager.SetChain(puname, coin)
+	err := manager.WriteToZK(puname)
+	if err != nil {
+		glog.Error("WriteToZK(", puname, ") failed: ", err)
+		apiErr = APIErrWriteRecordFailed
+		return
+	}
+
+	apiErr = nil
+	return
+}
+
+// changeSubPoolHandle 处理子池切换请求
+func (manager *UserChainManager) changeSubPoolHandle(w http.ResponseWriter, req *http.Request) {
+	puname := req.FormValue("puname")
+	subpool := req.FormValue("subpool")
+
+	oldSubPool, err := manager.changeSubPool(puname, subpool)
+
+	if err != nil {
+		glog.Info(err, ": ", req.RequestURI)
+		writeError(w, err.ErrNo, err.ErrMsg)
+		return
+	}
+
+	glog.Info("[single-subpool-change] ", puname, ": ", oldSubPool, " -> ", subpool)
+	writeSuccess(w)
+}
+
+// changeMultiUserSubPoolHandle 处理多用户子池切换请求
+func (manager *UserChainManager) changeMultiUserSubPoolHandle(w http.ResponseWriter, req *http.Request) {
+	var reqData SwitchMultiUserRequest
+
+	requestJSON, err := ioutil.ReadAll(req.Body)
+
+	if err != nil {
+		glog.Warning(err, ": ", req.RequestURI)
+		writeError(w, 500, err.Error())
+		return
+	}
+
+	err = json.Unmarshal(requestJSON, &reqData)
+
+	if err != nil {
+		glog.Info(err, ": ", req.RequestURI)
+		writeError(w, 400, err.Error())
+		return
+	}
+
+	if len(reqData.UserSubPools) <= 0 {
+		glog.Info(APIErrUserSubPoolsEmpty.ErrMsg, ": ", req.RequestURI)
+		writeError(w, APIErrUserSubPoolsEmpty.ErrNo, APIErrUserSubPoolsEmpty.ErrMsg)
+		return
+	}
+
+	for _, usercoin := range reqData.UserSubPools {
+		subpool := usercoin.SubPool
+
+		for _, puname := range usercoin.PUNames {
+			oldSubPool, err := manager.changeSubPool(puname, subpool)
+
+			if err != nil {
+				glog.Info(err, ": ", req.RequestURI, " {puname=", puname, ", subpool=", subpool, "}")
+				writeError(w, err.ErrNo, err.ErrMsg)
+				return
+			}
+
+			glog.Info("[multi-subpool-change] ", puname, ": ", oldSubPool, " -> ", subpool)
+		}
+	}
+
+	writeSuccess(w)
+}
+
+func (manager *UserChainManager) changeSubPool(puname string, subpool string) (oldSubPool string, apiErr *APIError) {
+	if len(puname) < 1 {
+		apiErr = APIErrPunameIsEmpty
+		return
+	}
+	if strings.Contains(puname, "/") {
+		apiErr = APIErrPunameInvalid
+		return
+	}
+
+	// 注意：subpool允许为空，为空表示切换到主池
+
+	puname = manager.RegularUserName(puname)
+	oldSubPool = manager.GetSubPool(puname)
+	manager.SetSubPool(puname, subpool)
 	err := manager.WriteToZK(puname)
 	if err != nil {
 		glog.Error("WriteToZK(", puname, ") failed: ", err)
