@@ -28,32 +28,34 @@ docker build -t btcpool-user-chain-api-server -f Dockerfile ..
 ```
 docker run -it --rm --network=host \
   -e AvailableCoins='ubtc,btc,bcc,auto' \
-  -e UserListAPI_ubtc='http://localhost:8000/userlist-ubtc.php' \
-  -e UserListAPI_btc='http://localhost:8000/userlist-btc.php' \
-  -e UserListAPI_bcc='http://localhost:8000/userlist-bch.php' \
+  -e UserListAPI_ubtc='http://localhost:58080/userlist-ubtc.php' \
+  -e UserListAPI_btc='http://localhost:58080/userlist-btc.php' \
+  -e UserListAPI_bcc='http://localhost:58080/userlist-bch.php' \
   -e ZKBroker='10.0.1.176:2181,10.0.1.175:2181,10.0.1.174:2181' \
   -e ZKSwitcherWatchDir='/stratumSwitcher/btcbcc/' \
   -e EnableAPIServer='true' \
   -e APIUser='switchapi' \
   -e APIPassword='admin' \
-  -e ListenAddr='0.0.0.0:8082' \
-  -e UserCoinMapURL='http://localhost:8000/usercoin.php' \
+  -e ListenAddr='0.0.0.0:8080' \
+  -e UserCoinMapURL='http://localhost:58080/usercoin.php' \
+  -e UserSubPoolMapURL='http://localhost:58080/usersubpool.php' \
   -e StratumServerCaseInsensitive='true' \
   btcpool-user-chain-api-server:latest -logtostderr -v 2
 
 # 守护进程
 docker run -it --name user-chain-api-server --network=host --restart always -d \
   -e AvailableCoins='ubtc,btc,bcc,auto' \
-  -e UserListAPI_ubtc='http://localhost:8000/userlist-ubtc.php' \
-  -e UserListAPI_btc='http://localhost:8000/userlist-btc.php' \
-  -e UserListAPI_bcc='http://localhost:8000/userlist-bch.php' \
+  -e UserListAPI_ubtc='http://localhost:58080/userlist-ubtc.php' \
+  -e UserListAPI_btc='http://localhost:58080/userlist-btc.php' \
+  -e UserListAPI_bcc='http://localhost:58080/userlist-bch.php' \
   -e ZKBroker='10.0.1.176:2181,10.0.1.175:2181,10.0.1.174:2181' \
   -e ZKSwitcherWatchDir='/stratumSwitcher/btcbcc/' \
   -e EnableAPIServer='true' \
   -e APIUser='switchapi' \
   -e APIPassword='admin' \
-  -e ListenAddr='0.0.0.0:8082' \
-  -e UserCoinMapURL='http://localhost:8000/usercoin.php' \
+  -e ListenAddr='0.0.0.0:8080' \
+  -e UserCoinMapURL='http://localhost:58080/usercoin.php' \
+  -e UserSubPoolMapURL='http://localhost:58080/usersubpool.php' \
   -e StratumServerCaseInsensitive='true' \
   btcpool-user-chain-api-server:latest -logtostderr -v 2
 ```
@@ -61,4 +63,5 @@ docker run -it --name user-chain-api-server --network=host --restart always -d \
 ### 参数说明
 
 * 如没有`UserCoinMapURL`，或者只有一个币种，请将其留空，这样就不会启动拉取`UserCoinMapURL`的任务。注意：用于开关该功能的`EnableCronJob`选项已废弃。
+* 如没有`UserSubPoolMapURL`，或者只有一个币种，请将其留空，这样就不会启动拉取`UserSubPoolMapURL`的任务。
 * 币种`auto`可选，用于机枪切换，不需要实际配置到`sserver`的`chains`里。`sserver`只需要打开机枪切换功能（`auto_switch_chain`）即可识别币种`auto`。

@@ -19,7 +19,7 @@ foreach ($c['AvailableCoins'] as $coin) {
     }
 }
 
-$c['IntervalSeconds'] = (int)optionalTrim('IntervalSeconds', 10);
+$c['FetchUserListIntervalSeconds'] = (int)optionalTrim('FetchUserListIntervalSeconds', 10);
 
 $c['ZKBroker'] = commaSplitTrim('ZKBroker');
 if (empty($c['ZKBroker']) || in_array('', $c['ZKBroker'])) {
@@ -46,7 +46,6 @@ if ($c['EnableUserAutoReg']) {
 }
 
 $c['StratumServerCaseInsensitive'] = isTrue('StratumServerCaseInsensitive');
-$c['ZKUserCaseInsensitiveIndex'] = optionalTrim('ZKUserCaseInsensitiveIndex');
 
 $c['EnableAPIServer'] = isTrue('EnableAPIServer');
 if ($c['EnableAPIServer']) {
@@ -55,11 +54,12 @@ if ($c['EnableAPIServer']) {
     $c['APIPassword'] = optionalTrim('APIPassword');
 }
 
-$c['EnableCronJob'] = isTrue('EnableCronJob');
-if ($c['EnableCronJob']) {
-    $c['CronIntervalSeconds'] = (int)optionalTrim('CronIntervalSeconds', 60);
-    $c['UserCoinMapURL'] = notNullTrim("UserCoinMapURL");
-}
+$c['FetchUserMapIntervalSeconds'] = (int)optionalTrim('FetchUserMapIntervalSeconds', 60);
+$c['UserCoinMapURL'] = optionalTrim("UserCoinMapURL");
+$c['UserSubPoolMapURL'] = optionalTrim("UserSubPoolMapURL");
+
+$c['ZKSubPoolUpdateBaseDir'] = optionalTrim("ZKSubPoolUpdateBaseDir");
+$c['ZKSubPoolUpdateAckTimeout'] = (int)optionalTrim("ZKSubPoolUpdateAckTimeout", 5);
 
 echo toJSON($c);
 
