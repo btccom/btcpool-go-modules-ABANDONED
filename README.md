@@ -1,9 +1,9 @@
 # [User Chain API Server](userChainAPIServer/)
 
 由两个模块合并而来：
-* [Switcher API Server](userChainAPIServer/switcherAPIServer/)
+* [Switcher API Server](userChainAPIServer/SwitcherAPIServer.md)
   提供触发 Stratum 切换的API
-* [Init User Coin](userChainAPIServer/initUserCoin/)
+* [Init User Coin](userChainAPIServer/InitUserCoin.md)
   初始化zookeeper里的用户币种记录
 
 # [Merged Mining Proxy](mergedMiningProxy/)
