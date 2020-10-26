@@ -425,11 +425,19 @@ func (manager *UserChainManager) FetchUserSubPoolMap(update bool) error {
 // RunFetchUserIDListCronJob 运行定时拉取用户ID列表任务
 func (manager *UserChainManager) RunFetchUserIDListCronJob(waitGroup *sync.WaitGroup, chain string) {
 	defer waitGroup.Done()
+	i := 0
 	for {
 		time.Sleep(time.Duration(manager.configData.FetchUserListIntervalSeconds) * time.Second)
 		err := manager.FetchUserIDList(chain, true)
 		if err != nil {
 			glog.Error("FetchUserIDList(", chain, ") failed: ", err)
+		}
+
+		// 每拉取30次（5分钟）就重新拉取一次全量的列表
+		i++
+		if i >= 30 {
+			manager.lastPUID[chain] = 0
+			i = 0
 		}
 	}
 }
@@ -437,11 +445,19 @@ func (manager *UserChainManager) RunFetchUserIDListCronJob(waitGroup *sync.WaitG
 // RunFetchUserCoinMapCronJob 运行定时拉取用户币种映射表任务
 func (manager *UserChainManager) RunFetchUserCoinMapCronJob(waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
+	i := 0
 	for {
 		time.Sleep(time.Duration(manager.configData.FetchUserMapIntervalSeconds) * time.Second)
 		err := manager.FetchUserCoinMap(true)
 		if err != nil {
 			glog.Error("FetchUserCoinMap() failed: ", err)
+		}
+
+		// 每拉取5次（5分钟）就重新拉取一次全量的列表
+		i++
+		if i >= 5 {
+			manager.lastCoinRequestDate = 0
+			i = 0
 		}
 	}
 }
@@ -449,11 +465,19 @@ func (manager *UserChainManager) RunFetchUserCoinMapCronJob(waitGroup *sync.Wait
 // RunFetchUserSubPoolMapCronJob 运行定时拉取用户子池映射表任务
 func (manager *UserChainManager) RunFetchUserSubPoolMapCronJob(waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
+	i := 0
 	for {
 		time.Sleep(time.Duration(manager.configData.FetchUserMapIntervalSeconds) * time.Second)
 		err := manager.FetchUserSubPoolMap(true)
 		if err != nil {
 			glog.Error("FetchUserSubPoolMap() failed: ", err)
+		}
+
+		// 每拉取5次（5分钟）就重新拉取一次全量的列表
+		i++
+		if i >= 5 {
+			manager.lastSubPoolRequestDate = 0
+			i = 0
 		}
 	}
 }
