@@ -109,5 +109,47 @@ func ReadConfigFile(configFilePath string) (configData *ConfigData, err error) {
 		configData.ZKSubPoolUpdateAckTimeout = 5
 	}
 
+	// 检查 UserListAPI
+	urlMap := make(map[string]string)
+	for chain, url := range configData.UserListAPI {
+		// 链名不能为auto
+		if chain == autoChainName {
+			err = errors.New("Wrong config: The chain in UserListAPI should not named '" + autoChainName + "'")
+		}
+
+		// 各个币种的 UserListAPI URL 不应该相同
+		if oldChain, ok := urlMap[url]; ok {
+			err = errors.New("Wrong config: The UserListAPI of '" + chain + "' should not be the same as '" + oldChain + "'")
+			return
+		}
+		urlMap[url] = chain
+
+		// UserListAPI 中的币种应该在 AvailableCoins 中
+		exists := false
+		for _, availableCoin := range configData.AvailableCoins {
+			if availableCoin == chain {
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			err = errors.New("Wrong config: The chain '" + chain + "' in UserListAPI doesn't exists in AvailableCoins")
+			return
+		}
+	}
+
+	// UserListAPI 中要么只有一个币种，要么具有所有币种。
+	// 如果不满足这个条件，则未指定 UserListAPI 的币种的 puid 是不稳定的，在其他币种更新 puid 时会被更新来更新去。
+	chainNum := 0
+	for _, chain := range configData.AvailableCoins {
+		if chain != autoChainName {
+			chainNum++
+		}
+	}
+	if len(configData.UserListAPI) != 1 && len(configData.UserListAPI) != chainNum {
+		err = errors.New("Wrong config: There should be only one chain or all chains except 'auto' in UserListAPI")
+		return
+	}
+
 	return
 }
