@@ -37,9 +37,8 @@ type UserChainManager struct {
 	mutex        *sync.RWMutex
 	userChainMap map[string]*UserChainInfo
 
-	lastPUID               map[string]int32 // 上次获取的最大PUID
-	lastCoinRequestDate    int64            // 上次请求币种接口的时间
-	lastSubPoolRequestDate int64            // 上次请求子池接口的时间
+	lastPUID            map[string]int32 // 上次获取的最大PUID
+	lastCoinRequestDate int64            // 上次请求币种接口的时间
 }
 
 // UserIDMapResponse 用户id列表接口响应的数据结构
@@ -370,14 +369,6 @@ func (manager *UserChainManager) FetchUserCoinMap(update bool) error {
 // FetchUserSubPoolMap 拉取用户子池映射表来更新用户子池记录
 func (manager *UserChainManager) FetchUserSubPoolMap(update bool) error {
 	url := manager.configData.UserSubPoolMapURL
-	// 若上次请求过接口，则附加上次请求的时间到url
-	if manager.lastSubPoolRequestDate > 0 {
-		// 减去configData.CronIntervalSeconds是为了防止出现竟态条件。
-		// 比如在上次拉取之后，同一秒内又有币种切换，如果不减去，就可能会错过这个切换消息。
-		url += "?last_date=" + strconv.FormatInt(manager.lastSubPoolRequestDate-int64(manager.configData.FetchUserMapIntervalSeconds), 10)
-	} else {
-		url += "?last_date=0"
-	}
 	glog.Info("FetchUserSubPoolMap ", url)
 	response, err := http.Get(url)
 
@@ -408,9 +399,28 @@ func (manager *UserChainManager) FetchUserSubPoolMap(update bool) error {
 
 	glog.Info("FetchUserSubPoolMap Success. TimeStamp: ", userCoinMapResponse.Data.NowDate, "; UserSubPool Num: ", len(userCoinMapResponse.Data.UserSubPool))
 
-	// 遍历用户币种列表
+	// 规范化用户名
+	userSubPool := make(map[string]string)
 	for puname, subpool := range userCoinMapResponse.Data.UserSubPool {
-		puname = manager.RegularUserName(puname)
+		userSubPool[manager.RegularUserName(puname)] = subpool
+	}
+
+	// 寻找子池改变的用户
+	changedUserSubPool := make(map[string]string)
+	manager.mutex.RLock()
+	for _, info := range manager.userChainMap {
+		newSubPool, exists := userSubPool[info.userName]
+
+		if !exists && len(info.SubPoolName) > 0 { // 子池 -> 主池
+			changedUserSubPool[info.userName] = ""
+		} else if exists && info.SubPoolName != newSubPool { // 主池 -> 子池 | 子池 -> 另一子池
+			changedUserSubPool[info.userName] = newSubPool
+		}
+	}
+	manager.mutex.RUnlock()
+
+	// 回填改变的子池
+	for puname, subpool := range changedUserSubPool {
 		manager.SetSubPool(puname, subpool)
 		if update {
 			err = manager.WriteToZK(puname)
@@ -465,19 +475,11 @@ func (manager *UserChainManager) RunFetchUserCoinMapCronJob(waitGroup *sync.Wait
 // RunFetchUserSubPoolMapCronJob 运行定时拉取用户子池映射表任务
 func (manager *UserChainManager) RunFetchUserSubPoolMapCronJob(waitGroup *sync.WaitGroup) {
 	defer waitGroup.Done()
-	i := 0
 	for {
 		time.Sleep(time.Duration(manager.configData.FetchUserMapIntervalSeconds) * time.Second)
 		err := manager.FetchUserSubPoolMap(true)
 		if err != nil {
 			glog.Error("FetchUserSubPoolMap() failed: ", err)
-		}
-
-		// 每拉取5次（5分钟）就重新拉取一次全量的列表
-		i++
-		if i >= 5 {
-			manager.lastSubPoolRequestDate = 0
-			i = 0
 		}
 	}
 }

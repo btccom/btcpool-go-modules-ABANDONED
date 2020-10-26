@@ -104,12 +104,10 @@ echo json_encode(
 
 ### 接口约定
 
-假设 `UserSubPoolMapURL` 为 `http://127.0.0.1:58080/usersubpool.php`，则程序首次访问的实际URL为：
-```
-http://127.0.0.1:58080/usersubpool.php?last_date=0
-```
+假设 `UserSubPoolMapURL` 为 `http://127.0.0.1:58080/usersubpool.php`，则程序将定时访问该URL，注意程序不会在URL后面附加其他参数，与上面的`UserCoinMapURL`接口不同。
 
-接口返回一个JSON字符串，包含所有用户及其所在子池（留空表示在主池）：
+接口返回一个JSON字符串，包含所有用户及其所在子池。注意：如果用户在主池，则无需出现在列表中。程序会自动判断，如果用户从列表中消失，则会将其切换到主池。
+
 ```json
 {
     "err_no": 0,
@@ -117,48 +115,13 @@ http://127.0.0.1:58080/usersubpool.php?last_date=0
         "user_subpool": {
             "user1": "subpool1",
             "user2": "subpool2",
-            "user3": "subpool1",
-            "user4": ""
-        },
-        "now_date": 1513239055
-    }
-}
-```
-其中，`user1`、`user2`、`user3`为子账户名，`subpool1`和`subpool2`为子池名称，`""`表示`user4`在主池，`now_date`为服务器的当前系统时间。
-
-经过配置文件中设置的 `FetchUserMapIntervalSeconds` 秒后，程序会再次访问如下URL：
-```
-http://127.0.0.1:58080/usersubpool.php?last_date=1513239055
-```
-其中，`1513239055`为上次服务器返回的`now_date`。
-
-此时，服务器可根据程序提供的`last_date`进行判断，如果在`last_date`到现在这段时间内没有任何用户切换过子池，则返回空`user_subpool`对象：
-```json
-{
-    "err_no": 0,
-    "data": {
-        "user_subpool": {},
-        "now_date": 1513239064
-    }
-}
-```
-> 注意：不可返回`user_subpool`数组，如`"user_subpool":[]`，否则程序会在日志中产生警告。使用PHP数组实现接口时，在输出前请先将`user_subpool`成员的类型强制转换为对象。
-
-否则，返回在这段时间内进行切换的用户及切换后的子池：
-```json
-{
-    "err_no": 0,
-    "data": {
-        "user_subpool": {
-            "user2": "subpool1",
-            "user3": ""
-        },
-        "now_date": 1513239064
+            "user3": "subpool1"
+        }
     }
 }
 ```
 
-备注：如果性能不受影响，服务器也可以忽略`last_date`参数，总是返回所有用户及其所在子池，无论其是否或在什么时间进行过切换。
+其中，`user1`、`user2`、`user3`为子账户名，`subpool1`和`subpool2`为子池名称。
 
 ### 参考实现
 
@@ -173,7 +136,7 @@ header('Content-Type: application/json');
 
 $last_id = (int) $_GET['last_id'];
 
-$subpools = ["subpool1", "subpool2", ""];
+$subpools = ["subpool1", "subpool2", null];
 
 $users = [
     'hu60' => $subpools[rand(0,2)],
@@ -182,13 +145,19 @@ $users = [
     'testpool' => $subpools[rand(0,2)],
 ];
 
+// Null means that the user switches to the main pool and does not need to appear in the list
+foreach ($users as $u) {
+    if ($users[$u] === null) {
+        unset($users[$u]);
+    }
+}
+
 echo json_encode(
     [
         'err_no' => 0,
         'err_msg' => null,
         'data' => [
             'user_subpool' => (object) $users,
-            'now_date' => time(),
         ],
     ]
 );
