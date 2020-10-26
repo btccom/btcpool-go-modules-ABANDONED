@@ -182,22 +182,25 @@ HTTP Basic 认证
 GET 或 POST
 
 #### 参数
-|  名称  |  类型  |   含义   |
-| ------ | ----- | -------- |
-| puname | string | 子账户名 |
-|  coin  | string |   币种  |
+|  名称        |  类型  |   含义    |
+| ------------| ------ | -------- |
+| puname      | string | 子账户名  |
+|  puid (可选) | int    | 子账户id |
+|  coin       | string |   币种   |
 
 #### 例子
 
-子账户aaaa切换到btc：
+子账户aaaa切换到btc（附带puid）：
 ```bash
-curl -u admin:admin 'http://127.0.0.1:8080/switch?puname=aaaa&coin=btc'
+curl -u admin:admin 'http://127.0.0.1:8080/switch?puname=aaaa&puid=133&coin=btc'
 ```
 
-子账户aaaa切换到bcc：
+子账户aaaa切换到bcc（不带puid）：
 ```bash
 curl -u admin:admin 'http://10.0.0.12:8080/switch?puname=aaaa&coin=bcc'
 ```
+
+**注意**：虽然`puid`是可选的，但是如果新币种的子账户刚刚创建，则强烈建议传递该参数。否则由于`puid`不存在，`sserver`不会第一时间切换到该币种。
 
 该API的返回结果：
 

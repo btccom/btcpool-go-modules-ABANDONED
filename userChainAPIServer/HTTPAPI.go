@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io/ioutil"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -361,8 +362,15 @@ func (manager *UserChainManager) updateCoinbaseHandle(w http.ResponseWriter, req
 func (manager *UserChainManager) switchHandle(w http.ResponseWriter, req *http.Request) {
 	puname := req.FormValue("puname")
 	coin := req.FormValue("coin")
+	puidStr := req.FormValue("puid")
 
-	oldCoin, err := manager.changeMiningCoin(puname, coin)
+	puid := int32(0)
+	if puidStr != "" {
+		num, _ := strconv.ParseInt(puidStr, 10, 32)
+		puid = int32(num)
+	}
+
+	oldCoin, err := manager.changeMiningCoin(puname, coin, puid)
 
 	if err != nil {
 		glog.Info(err, ": ", req.RequestURI)
@@ -404,7 +412,7 @@ func (manager *UserChainManager) switchMultiUserHandle(w http.ResponseWriter, re
 		coin := usercoin.Coin
 
 		for _, puname := range usercoin.PUNames {
-			oldCoin, err := manager.changeMiningCoin(puname, coin)
+			oldCoin, err := manager.changeMiningCoin(puname, coin, 0)
 
 			if err != nil {
 				glog.Info(err, ": ", req.RequestURI, " {puname=", puname, ", coin=", coin, "}")
@@ -419,7 +427,7 @@ func (manager *UserChainManager) switchMultiUserHandle(w http.ResponseWriter, re
 	writeSuccess(w)
 }
 
-func (manager *UserChainManager) changeMiningCoin(puname string, coin string) (oldCoin string, apiErr *APIError) {
+func (manager *UserChainManager) changeMiningCoin(puname string, coin string, puid int32) (oldCoin string, apiErr *APIError) {
 	if len(puname) < 1 {
 		apiErr = APIErrPunameIsEmpty
 		return
@@ -448,6 +456,9 @@ func (manager *UserChainManager) changeMiningCoin(puname string, coin string) (o
 
 	puname = manager.RegularUserName(puname)
 	oldCoin = manager.GetChain(puname)
+	if puid > 0 {
+		manager.SetPUID(puname, coin, puid)
+	}
 	manager.SetChain(puname, coin)
 	err := manager.WriteToZK(puname)
 	if err != nil {
