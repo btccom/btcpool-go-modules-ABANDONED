@@ -61,3 +61,30 @@ docker run -it --name user-chain-api-server --network=host --restart always -d \
 ```
 
 币种`auto`可选，用于机枪切换，不需要实际配置到`sserver`的`chains`里。`sserver`只需要打开机枪切换功能（`auto_switch_chain`）即可识别币种`auto`。
+
+如果需要自动注册功能，可使用如下配置：
+```
+docker run -it --name user-chain-api-server --network=host --restart always -d \
+  -e AvailableCoins='ubtc,btc,bcc,auto' \
+  -e UserListAPI_ubtc='http://localhost:8000/userlist-ubtc.php' \
+  -e UserListAPI_btc='http://localhost:8000/userlist-autoreg.php' \
+  -e UserListAPI_bcc='http://localhost:8000/userlist-bch.php' \
+  -e ZKBroker='10.0.1.176:2181,10.0.1.175:2181,10.0.1.174:2181' \
+  -e ZKSwitcherWatchDir='/stratumSwitcher/btcbcc/' \
+  -e EnableAPIServer='true' \
+  -e APIUser='switchapi' \
+  -e APIPassword='admin' \
+  -e ListenAddr='0.0.0.0:8082' \
+  -e EnableCronJob='true' \
+  -e UserCoinMapURL='http://localhost:8000/usercoin.php' \
+  -e StratumServerCaseInsensitive='true' \
+  -e EnableUserAutoReg="true" \
+  -e ZKAutoRegWatchDir="/stratumSwitcher/btcbcc_autoreg/" \
+  -e UserAutoRegAPI_IntervalSeconds=10 \
+  -e UserAutoRegAPI_URL="http://localhost:8000/autoreg.php" \
+  -e UserAutoRegAPI_User="" \
+  -e UserAutoRegAPI_Password="" \
+  -e UserAutoRegAPI_DefaultCoin="btc" \
+  -e UserAutoRegAPI_PostData='{"sub_name": "{sub_name}", "region_name": "all", "currency": "btc"}' \
+  btcpool-user-chain-api-server:latest -logtostderr -v 2
+```
