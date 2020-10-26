@@ -14,6 +14,9 @@ import (
 	"github.com/samuel/go-zookeeper/zk"
 )
 
+// autoChainName 币种自动切换模式的链名
+const autoChainName = "auto"
+
 // UserChainInfo 用户链信息
 type UserChainInfo struct {
 	userName    string           // internal field
@@ -190,8 +193,8 @@ func (manager *UserChainManager) RegularUserName(userName string) string {
 	return userName
 }
 
-// SetPUID 设置用户在特定币种下的puid
-func (manager *UserChainManager) SetPUID(userName string, chain string, puid int32) {
+// setPUIDInner 设置用户在特定币种下的puid（内部使用，不拷贝puid到未指定puid列表的链）
+func (manager *UserChainManager) setPUIDInner(userName string, chain string, puid int32) {
 	// map中存储的是指针，所以必须全程持有锁
 	manager.mutex.Lock()
 	defer manager.mutex.Unlock()
@@ -211,6 +214,21 @@ func (manager *UserChainManager) SetPUID(userName string, chain string, puid int
 	}
 
 	glog.Info("[SetPUID] ", userName, " (", chain, ") : ", puid)
+}
+
+// SetPUID 设置用户在特定币种下的puid（会拷贝puid到未指定puid列表的链）
+func (manager *UserChainManager) SetPUID(userName string, chain string, puid int32) {
+	manager.setPUIDInner(userName, chain, puid)
+
+	// 如果某些链未指定puid列表，则将当前puid拷贝到这些链中
+	for _, otherChain := range manager.configData.AvailableCoins {
+		if otherChain == autoChainName || otherChain == chain {
+			continue
+		}
+		if _, ok := manager.configData.UserListAPI[otherChain]; !ok {
+			manager.setPUIDInner(userName, otherChain, puid)
+		}
+	}
 }
 
 // SetChain 设置用户所挖币种

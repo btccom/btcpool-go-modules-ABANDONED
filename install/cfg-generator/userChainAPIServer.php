@@ -14,7 +14,7 @@ if (empty($c['AvailableCoins']) || in_array('', $c['AvailableCoins'])) {
 
 $c['UserListAPI'] = [];
 foreach ($c['AvailableCoins'] as $coin) {
-    if ($coin != "auto" || !empty($_ENV["UserListAPI_$coin"])) {
+    if ($coin != "auto" && !empty($_ENV["UserListAPI_$coin"])) {
         $c['UserListAPI'][$coin] = notNullTrim("UserListAPI_$coin");
     }
 }
