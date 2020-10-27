@@ -442,14 +442,7 @@ func (manager *UserChainManager) changeMiningCoin(puname string, coin string, pu
 	}
 
 	// 检查币种是否存在
-	exists := false
-	for _, availableCoin := range manager.configData.AvailableCoins {
-		if availableCoin == coin {
-			exists = true
-			break
-		}
-	}
-	if !exists {
+	if !manager.ChainExists(coin) {
 		apiErr = APIErrCoinIsInexistent
 		return
 	}

@@ -83,11 +83,22 @@ func NewUserChainManager(configData *ConfigData, zookeeper *Zookeeper) *UserChai
 	return manager
 }
 
+// ChainExists 链是否存在
+func (manager *UserChainManager) ChainExists(chain string) bool {
+	for _, availableChain := range manager.configData.AvailableCoins {
+		if chain == availableChain {
+			return true
+		}
+	}
+	return false
+}
+
 // ReadFromZK 从ZK读取用户链信息
 func (manager *UserChainManager) ReadFromZK(userName string) (info *UserChainInfo, err error) {
 	zkPath := manager.configData.ZKSwitcherWatchDir + userName
 	jsonBytes, _, err := manager.zookeeper.Get(zkPath)
 	if err != nil {
+		err = errors.New(zkPath + " : " + err.Error())
 		return
 	}
 
@@ -104,9 +115,12 @@ func (manager *UserChainManager) ReadFromZK(userName string) (info *UserChainInf
 
 	// map中存储的是指针，所以可以直接修改，不需要回填
 	err = json.Unmarshal(jsonBytes, info)
-	if err == nil {
-		glog.Info("ReadFromZK : ", info)
+	if err != nil {
+		err = errors.New(zkPath + " : " + string(jsonBytes) + " : " + err.Error())
+		return
 	}
+
+	glog.Info("ReadFromZK : ", info)
 	return
 }
 
@@ -123,21 +137,28 @@ func (manager *UserChainManager) WriteToZK(userName string) (err error) {
 	}
 	jsonBytes, err := json.Marshal(info)
 	if err != nil {
+		err = errors.New(userName + " : " + err.Error())
 		return
 	}
+
 	zkPath := manager.configData.ZKSwitcherWatchDir + userName
 	exists, stat, err := manager.zookeeper.Exists(zkPath)
 	if err != nil {
+		err = errors.New(zkPath + " : " + string(jsonBytes) + " : " + err.Error())
 		return
 	}
+
 	if exists {
 		_, err = manager.zookeeper.Set(zkPath, jsonBytes, stat.Version)
 	} else {
 		_, err = manager.zookeeper.Create(zkPath, jsonBytes, 0, zk.WorldACL(zk.PermAll))
 	}
-	if err == nil {
-		glog.Info("WriteToZK : ", info)
+	if err != nil {
+		err = errors.New(zkPath + " : " + string(jsonBytes) + " : " + err.Error())
+		return
 	}
+
+	glog.Info("WriteToZK : ", info)
 	return
 }
 
@@ -311,8 +332,13 @@ func (manager *UserChainManager) FetchUserIDList(chain string, update bool) erro
 	glog.Info("FetchUserIDList Success. User Num: ", len(userIDMapResponse.Data))
 
 	// 遍历用户币种列表
-	for puname, puid := range userIDMapResponse.Data {
-		puname = manager.RegularUserName(puname)
+	for oriPUName, puid := range userIDMapResponse.Data {
+		puname := manager.RegularUserName(oriPUName)
+		if len(puname) <= 0 {
+			glog.Warning("[FetchUserIDList] RegularUserName('" + oriPUName + "') == '', ignored")
+			continue
+		}
+
 		manager.SetPUID(puname, chain, puid)
 		if puid > manager.lastPUID[chain] {
 			manager.lastPUID[chain] = puid
@@ -371,8 +397,17 @@ func (manager *UserChainManager) FetchUserCoinMap(update bool) error {
 	glog.Info("FetchUserCoinMap Success. TimeStamp: ", userCoinMapResponse.Data.NowDate, "; UserCoin Num: ", len(userCoinMapResponse.Data.UserCoin))
 
 	// 遍历用户币种列表
-	for puname, chain := range userCoinMapResponse.Data.UserCoin {
-		puname = manager.RegularUserName(puname)
+	for oriPUName, chain := range userCoinMapResponse.Data.UserCoin {
+		puname := manager.RegularUserName(oriPUName)
+		if len(puname) <= 0 {
+			glog.Warning("[FetchUserCoinMap] RegularUserName('" + oriPUName + "') == '', ignored")
+			continue
+		}
+		if !manager.ChainExists(chain) {
+			glog.Warning("[FetchUserCoinMap] unknown chain " + chain + " for user " + puname + ", ignored")
+			continue
+		}
+
 		manager.SetChain(puname, chain)
 		if update {
 			err = manager.WriteToZK(puname)
