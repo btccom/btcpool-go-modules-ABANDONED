@@ -5,6 +5,8 @@ import (
 	"errors"
 	"io/ioutil"
 	"time"
+
+	"github.com/golang/glog"
 )
 
 // AutoRegAPIConfig 用户自动注册API定义
@@ -149,6 +151,12 @@ func ReadConfigFile(configFilePath string) (configData *ConfigData, err error) {
 	if len(configData.UserListAPI) != 1 && len(configData.UserListAPI) != chainNum {
 		err = errors.New("Wrong config: There should be only one chain or all chains except 'auto' in UserListAPI")
 		return
+	}
+
+	// 只有一个币种，不需要设置 UserCoinMapURL
+	if len(configData.AvailableCoins) == 1 && len(configData.UserCoinMapURL) > 0 {
+		glog.Warning("There is only one available chain, no need to set UserCoinMapURL")
+		configData.UserCoinMapURL = ""
 	}
 
 	return
