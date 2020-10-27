@@ -243,7 +243,10 @@ func (manager *UserChainManager) setPUIDInner(userName string, chain string, pui
 		changed = true
 	}
 
-	glog.Info("[SetPUID] ", userName, " (", chain, ") : ", puid)
+	if changed {
+		glog.Info("[SetPUID] ", userName, " (", chain, ") : ", puid)
+	}
+
 	return
 }
 
@@ -279,7 +282,10 @@ func (manager *UserChainManager) SetChain(userName string, chain string) (change
 		changed = (info.ChainName != chain)
 	}
 
-	glog.Info("[SetChain] ", userName, " : ", info.ChainName, " -> ", chain)
+	if changed {
+		glog.Info("[SetChain] ", userName, " : ", info.ChainName, " -> ", chain)
+	}
+
 	info.ChainName = chain
 	return
 }
@@ -300,7 +306,10 @@ func (manager *UserChainManager) SetSubPool(userName string, subpool string) (ch
 		changed = (info.SubPoolName != subpool)
 	}
 
-	glog.Info("[SetSubPool] ", userName, " : ", info.SubPoolName, " -> ", subpool)
+	if changed {
+		glog.Info("[SetSubPool] ", userName, " : ", info.SubPoolName, " -> ", subpool)
+	}
+
 	info.SubPoolName = subpool
 	return
 }
