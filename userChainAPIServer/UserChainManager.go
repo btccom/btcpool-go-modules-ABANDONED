@@ -215,7 +215,7 @@ func (manager *UserChainManager) RegularUserName(userName string) string {
 }
 
 // setPUIDInner 设置用户在特定币种下的puid（内部使用，不拷贝puid到未指定puid列表的链）
-func (manager *UserChainManager) setPUIDInner(userName string, chain string, puid int32) {
+func (manager *UserChainManager) setPUIDInner(userName string, chain string, puid int32) (changed bool) {
 	// map中存储的是指针，所以必须全程持有锁
 	manager.mutex.Lock()
 	defer manager.mutex.Unlock()
@@ -225,6 +225,14 @@ func (manager *UserChainManager) setPUIDInner(userName string, chain string, pui
 		info = NewUserChainInfo(userName)
 		// map中存储的是指针，所以可以提前回填
 		manager.userChainMap[userName] = info
+		changed = true
+	} else {
+		oriPUID, ok := info.PUIDs[chain]
+		if !ok {
+			changed = true
+		} else {
+			changed = (oriPUID != puid)
+		}
 	}
 
 	// map中存储的是指针，所以可以直接修改，不需要回填
@@ -232,14 +240,16 @@ func (manager *UserChainManager) setPUIDInner(userName string, chain string, pui
 
 	if len(info.ChainName) <= 0 {
 		info.ChainName = chain
+		changed = true
 	}
 
 	glog.Info("[SetPUID] ", userName, " (", chain, ") : ", puid)
+	return
 }
 
 // SetPUID 设置用户在特定币种下的puid（会拷贝puid到未指定puid列表的链）
-func (manager *UserChainManager) SetPUID(userName string, chain string, puid int32) {
-	manager.setPUIDInner(userName, chain, puid)
+func (manager *UserChainManager) SetPUID(userName string, chain string, puid int32) (changed bool) {
+	changed = manager.setPUIDInner(userName, chain, puid)
 
 	// 如果某些链未指定puid列表，则将当前puid拷贝到这些链中
 	for _, otherChain := range manager.configData.AvailableCoins {
@@ -247,13 +257,14 @@ func (manager *UserChainManager) SetPUID(userName string, chain string, puid int
 			continue
 		}
 		if _, ok := manager.configData.UserListAPI[otherChain]; !ok {
-			manager.setPUIDInner(userName, otherChain, puid)
+			changed = manager.setPUIDInner(userName, otherChain, puid) || changed
 		}
 	}
+	return
 }
 
 // SetChain 设置用户所挖币种
-func (manager *UserChainManager) SetChain(userName string, chain string) {
+func (manager *UserChainManager) SetChain(userName string, chain string) (changed bool) {
 	// map中存储的是指针，所以必须全程持有锁
 	manager.mutex.Lock()
 	defer manager.mutex.Unlock()
@@ -263,14 +274,18 @@ func (manager *UserChainManager) SetChain(userName string, chain string) {
 		info = NewUserChainInfo(userName)
 		// map中存储的是指针，所以可以提前回填
 		manager.userChainMap[userName] = info
+		changed = true
+	} else {
+		changed = (info.ChainName != chain)
 	}
 
 	glog.Info("[SetChain] ", userName, " : ", info.ChainName, " -> ", chain)
 	info.ChainName = chain
+	return
 }
 
 // SetSubPool 设置用户所在的子池
-func (manager *UserChainManager) SetSubPool(userName string, subpool string) {
+func (manager *UserChainManager) SetSubPool(userName string, subpool string) (changed bool) {
 	// map中存储的是指针，所以必须全程持有锁
 	manager.mutex.Lock()
 	defer manager.mutex.Unlock()
@@ -280,10 +295,14 @@ func (manager *UserChainManager) SetSubPool(userName string, subpool string) {
 		info = NewUserChainInfo(userName)
 		// map中存储的是指针，所以可以提前回填
 		manager.userChainMap[userName] = info
+		changed = true
+	} else {
+		changed = (info.SubPoolName != subpool)
 	}
 
 	glog.Info("[SetSubPool] ", userName, " : ", info.SubPoolName, " -> ", subpool)
 	info.SubPoolName = subpool
+	return
 }
 
 // FetchUserIDList 拉取用户id列表来更新用户puid/币种记录
@@ -339,15 +358,16 @@ func (manager *UserChainManager) FetchUserIDList(chain string, update bool) erro
 			continue
 		}
 
-		manager.SetPUID(puname, chain, puid)
-		if puid > manager.lastPUID[chain] {
-			manager.lastPUID[chain] = puid
-		}
-		if update {
+		changed := manager.SetPUID(puname, chain, puid)
+		if update && changed {
 			err = manager.WriteToZK(puname)
 			if err != nil {
 				glog.Error("WriteToZK(", puname, ") failed: ", err)
 			}
+		}
+
+		if puid > manager.lastPUID[chain] {
+			manager.lastPUID[chain] = puid
 		}
 	}
 
@@ -404,12 +424,12 @@ func (manager *UserChainManager) FetchUserCoinMap(update bool) error {
 			continue
 		}
 		if !manager.ChainExists(chain) {
-			glog.Warning("[FetchUserCoinMap] unknown chain " + chain + " for user " + puname + ", ignored")
+			glog.Warning("[FetchUserCoinMap] unknown chain '" + chain + "' for user '" + puname + "', ignored")
 			continue
 		}
 
-		manager.SetChain(puname, chain)
-		if update {
+		changed := manager.SetChain(puname, chain)
+		if update && changed {
 			err = manager.WriteToZK(puname)
 			if err != nil {
 				glog.Error("WriteToZK(", puname, ") failed: ", err)
@@ -474,8 +494,8 @@ func (manager *UserChainManager) FetchUserSubPoolMap(update bool) error {
 
 	// 回填改变的子池
 	for puname, subpool := range changedUserSubPool {
-		manager.SetSubPool(puname, subpool)
-		if update {
+		changed := manager.SetSubPool(puname, subpool)
+		if update && changed {
 			err = manager.WriteToZK(puname)
 			if err != nil {
 				glog.Error("WriteToZK(", puname, ") failed: ", err)
