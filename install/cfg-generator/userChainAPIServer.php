@@ -34,8 +34,8 @@ if ($c['EnableUserAutoReg']) {
     $c['UserAutoRegAPI'] = [
         'IntervalSeconds' => (int)optionalTrim('UserAutoRegAPI_IntervalSeconds', 10),
         'URL' => notNullTrim('UserAutoRegAPI_URL'),
-        'User' => notNullTrim('UserAutoRegAPI_User'),
-        'Password' => notNullTrim('UserAutoRegAPI_Password'),
+        'User' => optionalTrim('UserAutoRegAPI_User'),
+        'Password' => optionalTrim('UserAutoRegAPI_Password'),
         'DefaultCoin' => notNullTrim('UserAutoRegAPI_DefaultCoin'),
         'PostData' => json_decode(notNullTrim('UserAutoRegAPI_PostData')),
     ];
